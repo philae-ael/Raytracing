@@ -47,7 +47,7 @@ impl Progress {
         match self.done_state() {
             DoneState::Done => (),
             DoneState::FirstDone => {
-                println!("\raaaaaa{}", self);
+                println!("\r{}", self);
                 let _ = std::io::stdout().flush();
             }
             DoneState::NotDone => {

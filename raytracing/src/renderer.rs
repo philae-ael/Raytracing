@@ -8,7 +8,7 @@ use crate::{
     aggregate::shapelist::ShapeList,
     camera::{Camera, PixelCoord, ViewportCoord},
     color::BLACK,
-    integrators::{self, Integrator},
+    integrators::Integrator,
     material::{texture::Uniform, Emit, MaterialDescriptor, MaterialId},
     math::{
         quaternion::LookAt,
@@ -34,6 +34,7 @@ pub struct Renderer {
 
 pub struct RayResult {
     pub normal: Vec3,
+    pub position: Vec3,
     pub albedo: Rgb<f32>,
     pub color: Rgb<f32>,
     pub z: f32,
@@ -44,6 +45,7 @@ pub struct RayResult {
 impl RayResult {
     pub fn resample(self) -> Self {
         let RayResult {
+            position,
             normal,
             albedo,
             color,
@@ -55,6 +57,7 @@ impl RayResult {
         let inv_samples = 1.0 / samples_accumulated as f32;
         Self {
             normal: inv_samples * normal,
+            position: inv_samples * position,
             albedo: (inv_samples * albedo.vec()).rgb(),
             color: (inv_samples * color.vec()).rgb(),
             z: inv_samples * z,
@@ -68,6 +71,7 @@ impl Default for RayResult {
     fn default() -> Self {
         Self {
             normal: BLACK.vec(),
+            position: Vec3::ZERO,
             albedo: BLACK,
             color: BLACK,
             z: 0.0,
@@ -83,6 +87,7 @@ impl Add for RayResult {
     fn add(self, rhs: Self) -> Self::Output {
         let RayResult {
             normal: normal1,
+            position: position1,
             albedo: albedo1,
             color: color1,
             z: z1,
@@ -92,6 +97,7 @@ impl Add for RayResult {
 
         let RayResult {
             normal: normal2,
+            position: position2,
             albedo: albedo2,
             color: color2,
             z: z2,
@@ -101,6 +107,7 @@ impl Add for RayResult {
 
         RayResult {
             normal: normal1 + normal2,
+            position: position1 + position2,
             albedo: (albedo1.vec() + albedo2.vec()).rgb(),
             color: (color1.vec() + color2.vec()).rgb(),
             z: z1 + z2,
@@ -113,16 +120,18 @@ impl Add for RayResult {
 pub enum Channel<RgbStorage, LumaStorage> {
     Color(RgbStorage),
     Normal(RgbStorage),
+    Position(RgbStorage),
     Albedo(RgbStorage),
     Z(LumaStorage),
     RayDepth(LumaStorage),
 }
-const CHANNEL_COUNT: usize = 5;
+const CHANNEL_COUNT: usize = 6;
 
 #[repr(C)]
 pub struct GenericRenderResult<RgbStorage, LumaStorage> {
     pub color: RgbStorage,
     pub normal: RgbStorage,
+    pub position: RgbStorage,
     pub albedo: RgbStorage,
     pub z: LumaStorage,
     pub ray_depth: LumaStorage,
@@ -133,6 +142,7 @@ impl<RgbStorage, LumaStorage> GenericRenderResult<RgbStorage, LumaStorage> {
         GenericRenderResult {
             color: &self.color,
             normal: &self.normal,
+            position: &&self.position,
             albedo: &self.albedo,
             z: &self.z,
             ray_depth: &self.ray_depth,
@@ -151,6 +161,7 @@ impl<RgbStorage, LumaStorage> IntoIterator for GenericRenderResult<RgbStorage, L
         [
             Channel::Color(self.color),
             Channel::Albedo(self.albedo),
+            Channel::Position(self.position),
             Channel::Normal(self.normal),
             Channel::Z(self.z),
             Channel::RayDepth(self.ray_depth),
@@ -163,6 +174,7 @@ impl Clone for PixelRenderResult {
     fn clone(&self) -> Self {
         Self {
             color: self.color.clone(),
+            position: self.position.clone(),
             normal: self.normal.clone(),
             albedo: self.albedo.clone(),
             z: self.z.clone(),
@@ -203,7 +215,8 @@ impl Renderer {
             .resample();
 
         GenericRenderResult {
-            normal: ray_results.normal.to_array(),
+            normal: ray_results.normal.into(),
+            position: ray_results.position.into(),
             color: ray_results.color.0,
             albedo: ray_results.albedo.0,
             z: ray_results.z,
@@ -217,6 +230,7 @@ pub struct DefaultRenderer {
     pub height: u32,
     pub spp: u32,
     pub scene: Scene,
+    pub integrator: Box<dyn Integrator>,
 }
 
 impl Into<Renderer> for DefaultRenderer {
@@ -256,7 +270,7 @@ impl Into<Renderer> for DefaultRenderer {
                 samples_per_pixel: self.spp,
                 world_material: sky_mat,
             },
-            integrator: Box::new(integrators::WhittedIntegrator { max_depth: 20 }),
+            integrator: self.integrator,
         }
     }
 }

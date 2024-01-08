@@ -1,4 +1,4 @@
-use crate::{ray::Ray, shape::local_info};
+use crate::{math::vec::RgbAsVec3Ext, ray::Ray, shape::local_info};
 
 use super::{texture::Texture, Material, Scattered};
 
@@ -17,5 +17,8 @@ impl Material for Emit {
             ray_out: None,
             albedo: self.texture.color(record.uv),
         }
+    }
+    fn emissive(&self) -> Option<glam::Vec3> {
+        Some(self.texture.color([0.0, 0.0]).vec())
     }
 }

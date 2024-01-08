@@ -34,6 +34,8 @@ impl From<CornellBoxScene> for Scene {
             default_material,
         );
 
+        scene.insert_light(Vec3::new(0.0, 0.4, -0.4));
+
         scene
     }
 }

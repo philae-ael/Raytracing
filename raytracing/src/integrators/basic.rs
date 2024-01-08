@@ -41,6 +41,7 @@ impl Integrator for BasicIntegrator {
 
         RayResult {
             normal: record.local_info.normal,
+            position: record.local_info.pos,
             albedo: scattered.albedo,
             color,
             z: record.t,

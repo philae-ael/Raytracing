@@ -7,9 +7,12 @@ use std::fmt::Display;
 
 use clap::{Parser, ValueEnum};
 use cli::Cli;
-use raytracing::scene::{
-    examples::{CornellBoxScene, SpheresScene, StandfordBunnyScene},
-    Scene,
+use raytracing::{
+    integrators::{BasicIntegrator, Integrator, WhittedIntegrator},
+    scene::{
+        examples::{CornellBoxScene, SpheresScene, StandfordBunnyScene},
+        Scene,
+    },
 };
 
 #[derive(Debug, Default, Clone, Copy, ValueEnum)]
@@ -36,6 +39,22 @@ pub enum AvailableOutput {
     Tev,
     Vulkan,
     File,
+}
+
+#[derive(Default, Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Hash)]
+pub enum AvailableIntegrator {
+    #[default]
+    Basic,
+    Whitted,
+}
+
+impl Into<Box<dyn Integrator>> for AvailableIntegrator {
+    fn into(self) -> Box<dyn Integrator> {
+        match self {
+            AvailableIntegrator::Basic => Box::new(BasicIntegrator { max_depth: 20 }),
+            AvailableIntegrator::Whitted => Box::new(WhittedIntegrator { max_depth: 20 }),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -80,6 +99,9 @@ pub struct Args {
 
     #[arg(short, long, value_enum)]
     output: Vec<AvailableOutput>,
+
+    #[arg(short, long, value_enum)]
+    integrator: AvailableIntegrator,
 
     #[arg(long)]
     tev_hostname: Option<String>,

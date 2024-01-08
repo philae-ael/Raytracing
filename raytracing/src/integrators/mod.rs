@@ -12,7 +12,7 @@ pub trait Integrator: Send + Sync {
     fn ray_cast(&self, renderer: &Renderer, ray: Ray, depth: u32) -> RayResult;
     fn sky_ray(&self, renderer: &Renderer, ray: Ray) -> RayResult {
         let mut rng = rand::thread_rng();
-        
+
         let material = &renderer.materials[renderer.options.world_material.0].material;
         let record = local_info::Full {
             pos: ray.origin,

@@ -18,7 +18,6 @@
 //!
 //! All explicit shapes are reimported bellow
 
-pub mod implicit;
 pub mod shape;
 pub mod sphere;
 pub mod triangle;

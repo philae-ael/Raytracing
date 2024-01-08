@@ -1,12 +1,15 @@
 use std::path::PathBuf;
 
 use crate::{
-    aggregate::shapelist::ShapeList,
+    aggregate::shapelist::{ShapeList, ShapeListEntry},
     color::Rgb,
     material::{texture, Diffuse, Emit, Material, MaterialDescriptor, MaterialId, MixMaterial},
-    math::{point::Point, transform::{Transform, Transformer}},
+    math::{
+        point::Point,
+        transform::{Transform, Transformer},
+    },
     scene::Scene,
-    shape::{Shape, TriangleBuilder},
+    shape::TriangleBuilder,
 };
 
 pub trait ObjLoaderExt {
@@ -94,7 +97,7 @@ impl ObjLoaderExt for Scene {
             let num_faces = mesh.indices.len() / 3;
             log::debug!("Loading model {}; {} faces", model.name, num_faces);
 
-            let mut triangles: Vec<Box<dyn Shape + Sync + Send>> = Vec::new();
+            let mut triangles: ShapeList = Default::default();
 
             log::debug!("indices: {:?}", mesh.indices);
             // TODO: Grab normals if any
@@ -133,17 +136,16 @@ impl ObjLoaderExt for Scene {
                     default_material
                 };
 
-                triangles.push(
-                    Box::new(
-                        TriangleBuilder {
-                            vertices,
-                            winding: Default::default(),
-                        }
-                        .build(material),
-                    ), // TODO: use material which is inside OBJ file
-                );
+                triangles.0.push(ShapeListEntry::Shape(Box::new(
+                    TriangleBuilder {
+                        vertices,
+                        winding: Default::default(),
+                    }
+                    .build(material),
+                )));
             }
-            self.insert_object(ShapeList(triangles));
+
+            self.insert_shape_list(triangles)
         }
     }
 }

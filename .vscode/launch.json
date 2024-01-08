@@ -75,7 +75,17 @@
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": [
+                "-o",
+                "tev",
+                "--spp",
+                "1",
+                "--integrator",
+                "basic",
+                "--scene",
+                "debug",
+                "--no-threads"
+            ],
             "cwd": "${workspaceFolder}"
         },
         {

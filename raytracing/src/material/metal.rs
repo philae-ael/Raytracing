@@ -4,7 +4,7 @@ use rand::prelude::Distribution;
 use crate::{
     math::{
         distributions::{UnitBall3, UnitBall3PolarMethod},
-        vec::{RefrReflVecExt, Vec3AsNonZero, RgbAsVec3Ext},
+        vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3AsNonZero},
     },
     ray::Ray,
     shape::local_info,

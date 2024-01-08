@@ -10,7 +10,7 @@ use cli::Cli;
 use raytracing::{
     integrators::{BasicIntegrator, Integrator, WhittedIntegrator},
     scene::{
-        examples::{CornellBoxScene, SpheresScene, StandfordBunnyScene},
+        examples::{CornellBoxScene, DebugScene, SpheresScene, StandfordBunnyScene},
         Scene,
     },
 };
@@ -21,6 +21,7 @@ pub enum AvailableScene {
     #[default]
     CornellBox,
     Spheres,
+    Debug,
 }
 
 impl Into<Scene> for AvailableScene {
@@ -29,6 +30,7 @@ impl Into<Scene> for AvailableScene {
             AvailableScene::Bunny => StandfordBunnyScene.into(),
             AvailableScene::CornellBox => CornellBoxScene.into(),
             AvailableScene::Spheres => SpheresScene.into(),
+            AvailableScene::Debug => DebugScene.into(),
         }
     }
 }
@@ -108,7 +110,10 @@ pub struct Args {
 
     /// If provided, allow for a kind of adaptative sampling by estimating the error of a pixel until the error if less than the given value
     #[arg(long)]
-    allowed_error: Option<f32>
+    allowed_error: Option<f32>,
+
+    #[arg(long)]
+    no_threads: bool,
 }
 
 fn main() -> anyhow::Result<()> {

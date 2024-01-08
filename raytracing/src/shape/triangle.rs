@@ -1,6 +1,10 @@
 use glam::Vec3;
 
-use crate::{material::MaterialId, ray::Ray, math::point::Point};
+use crate::{
+    material::MaterialId,
+    math::{bounds::Bounds, point::Point},
+    ray::Ray,
+};
 
 use super::{
     local_info, shape::RayIntersection, FullIntersectionResult, IntersectionResult,
@@ -16,7 +20,7 @@ pub enum Winding {
 }
 
 /// Gather information to create a triangle.
-/// 
+///
 /// Use the [TriangleBuilder::build] method to compute additional data and build a [Triangle]
 #[derive(Debug)]
 pub struct TriangleBuilder {
@@ -91,7 +95,7 @@ impl Shape for Triangle {
                 {
                     let pos = ray.at(t);
                     let normal = u * self.normals[0] + v * self.normals[1] + w * self.normals[2];
-                    IntersectionResult::Instersection(RayIntersection {
+                    IntersectionResult::Intersection(RayIntersection {
                         t,
                         local_info: local_info::Full {
                             pos,
@@ -114,7 +118,7 @@ impl Shape for Triangle {
                 if (0.0..=1.0).contains(&u) && (0.0..=1.0).contains(&v) && ray.range().contains(&t)
                 {
                     let pos = ray.at(t);
-                    IntersectionResult::Instersection(RayIntersection {
+                    IntersectionResult::Intersection(RayIntersection {
                         t,
                         local_info: local_info::Minimum { pos },
                     })
@@ -126,7 +130,7 @@ impl Shape for Triangle {
         }
     }
 
-    fn local_information(&self, _p: Vec3) -> Option<local_info::Full> {
-        todo!()
+    fn bounding_box(&self) -> Bounds {
+        Bounds::from_points(&self.vertices)
     }
 }

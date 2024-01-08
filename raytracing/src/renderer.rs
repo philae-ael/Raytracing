@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable};
 use rand::distributions::{self, Distribution};
 
 use crate::{
-    aggregate::shapelist::ShapeList,
+    aggregate::bvh::BVH,
     camera::{Camera, PixelCoord, ViewportCoord},
     color::{self, Luma, Rgb},
     integrators::Integrator,
@@ -14,6 +14,7 @@ use crate::{
         vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
     },
     scene::Scene,
+    shape::Shape,
     utils::counter::counter,
 };
 
@@ -24,7 +25,7 @@ pub struct RendererOptions {
 }
 pub struct Renderer {
     pub camera: Camera,
-    pub objects: ShapeList,
+    pub objects: Box<dyn Shape>,
     pub lights: Vec<Point>,
     pub options: RendererOptions,
 
@@ -279,9 +280,12 @@ impl Into<Renderer> for DefaultRenderer {
             }),
         });
 
+        // let objects = Box::new(scene.objects);
+        let objects = Box::new(BVH::from_shapelist(scene.objects));
+
         Renderer {
             camera,
-            objects: scene.objects,
+            objects,
             materials: scene.materials,
             lights: scene.lights,
             options: RendererOptions {

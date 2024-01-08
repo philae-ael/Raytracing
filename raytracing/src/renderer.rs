@@ -1,7 +1,6 @@
 use bytemuck::{Pod, Zeroable};
-use image::{buffer::EnumeratePixelsMut, Luma, Rgb, Rgb32FImage};
+use image::Rgb;
 use rand::distributions::Distribution;
-use rayon::prelude::{ParallelBridge, ParallelIterator};
 
 use crate::{
     aggregate::shapelist::ShapeList,
@@ -13,7 +12,6 @@ use crate::{
         quaternion::LookAt,
         vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
     },
-    progress,
     ray::Ray,
     scene::Scene,
     shape::{local_info, IntersectionResult, Shape},
@@ -51,71 +49,6 @@ pub struct RenderResult {
     pub z: f32,
     pub ray_depth: f32,
 }
-
-pub struct OutputBuffers {
-    pub color: Rgb32FImage,
-    pub normal: Rgb32FImage,
-    pub albedo: Rgb32FImage,
-    pub depth: image::ImageBuffer<Luma<f32>, Vec<f32>>,
-}
-
-impl OutputBuffers {
-    fn iter(&'_ mut self) -> OutputBuffersIterator<'_, f32> {
-        OutputBuffersIterator {
-            color: self.color.enumerate_pixels_mut(),
-            normal: self.normal.enumerate_pixels_mut(),
-            albedo: self.albedo.enumerate_pixels_mut(),
-            depth: self.depth.enumerate_pixels_mut(),
-        }
-    }
-}
-
-struct OutputBuffersIterator<'a, T>
-where
-    Rgb<T>: image::Pixel,
-    Luma<T>: image::Pixel,
-{
-    color: EnumeratePixelsMut<'a, Rgb<T>>,
-    normal: EnumeratePixelsMut<'a, Rgb<T>>,
-    albedo: EnumeratePixelsMut<'a, Rgb<T>>,
-    depth: EnumeratePixelsMut<'a, Luma<T>>,
-}
-struct OutputBufferProxy<'a, T>
-where
-    Rgb<T>: image::Pixel,
-    Luma<T>: image::Pixel,
-{
-    pub x: u32,
-    pub y: u32,
-    color: &'a mut Rgb<T>,
-    normal: &'a mut Rgb<T>,
-    albedo: &'a mut Rgb<T>,
-    depth: &'a mut Luma<T>,
-}
-
-impl<'a, T> Iterator for OutputBuffersIterator<'a, T>
-where
-    Rgb<T>: image::Pixel,
-    Luma<T>: image::Pixel,
-{
-    type Item = OutputBufferProxy<'a, T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let (x, y, normal) = self.normal.next()?;
-        let albedo = self.albedo.next()?.2;
-        let color = self.color.next()?.2;
-        let depth = self.depth.next()?.2;
-        Some(OutputBufferProxy {
-            x,
-            y,
-            normal,
-            albedo,
-            color,
-            depth,
-        })
-    }
-}
-
 impl Renderer {
     pub fn process_pixel(self: &Renderer, vx: f32, vy: f32) -> RenderResult {
         let pixel_width = 1. / (self.camera.width as f32 - 1.);
@@ -242,33 +175,6 @@ impl Renderer {
                 ray_depth: 0.0,
             }
         }
-    }
-
-    pub fn run_scene(&self, output_buffer: &mut OutputBuffers) {
-        let progress = progress::Progress::new((self.camera.width * self.camera.height) as usize);
-
-        log::info!("Generating image...");
-        rayon::scope(|s| {
-            s.spawn(|_| {
-                while !progress.done() {
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-                    progress.print();
-                }
-                println!();
-            });
-
-            output_buffer.iter().par_bridge().for_each(|p| {
-                // pixels in the image crate are from left to right, top to bottom
-                let vx = 2. * (p.x as f32 / (self.camera.width - 1) as f32) - 1.;
-                let vy = 1. - 2. * (p.y as f32 / (self.camera.height - 1) as f32);
-                let render_result = self.process_pixel(vx, vy);
-                *p.color = Rgb(render_result.color);
-                *p.normal = Rgb(render_result.normal);
-                *p.albedo = Rgb(render_result.albedo);
-                *p.depth = Luma([render_result.ray_depth as f32]);
-                progress.inc();
-            });
-        });
     }
 }
 

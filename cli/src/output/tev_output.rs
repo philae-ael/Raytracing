@@ -5,11 +5,11 @@ use rand::{distributions::Alphanumeric, Rng};
 use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
 use crate::{
-    cli::{Cli, Output},
+    cli::{Cli, OutputStreaming},
     tile_renderer::TileMsg,
 };
 
-pub struct TevOutput {
+pub struct TevStreaming {
     client: TevClient,
     image_name: String,
     channel_names: [&'static str; 11],
@@ -17,7 +17,7 @@ pub struct TevOutput {
     channel_strides: [u64; 11],
 }
 
-impl TevOutput {
+impl TevStreaming {
     pub fn new(cli: &Cli, tev_path: Option<PathBuf>) -> Result<Self> {
         let mut client = if let Some(tev_path) = tev_path {
             let command = std::process::Command::new(tev_path);
@@ -71,7 +71,7 @@ impl TevOutput {
     }
 }
 
-impl Output for TevOutput {
+impl OutputStreaming for TevStreaming {
     fn send_msg(&mut self, cli: &Cli, msg: &TileMsg) -> Result<()> {
         let x = msg.tile_x * cli.tile_size;
         let y = msg.tile_y * cli.tile_size;

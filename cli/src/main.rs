@@ -1,6 +1,6 @@
 mod cli;
 mod tile_renderer;
-mod tev;
+mod output;
 
 use std::{fmt::Display, path::PathBuf};
 
@@ -63,7 +63,7 @@ impl Display for Dimensions {
 #[derive(Parser, Debug)]
 pub struct Args {
     tev_path: Option<PathBuf>,
-    #[arg(long = "spp", default_value_t = 20)]
+    #[arg(long = "spp", default_value_t = 1)]
     /// Samples per pixels
     sample_per_pixel: u32,
 

@@ -82,7 +82,7 @@ pub fn insert_counter(descr: &'static str, counter: Counter) -> Arc<Counter> {
 macro_rules! counter {
     ($descr:literal) => {
         if cfg!(feature = "counter") {
-            use crate::utils::counter::{Counter, CounterU64};
+            use crate::utils::counter::{Counter, CounterU64, insert_counter};
             lazy_static::lazy_static! {
                 static ref COUNTER_REF: std::sync::Arc<Counter> = {
                     insert_counter($descr, Counter::CounterU64(CounterU64::new()))

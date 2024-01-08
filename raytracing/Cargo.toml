@@ -15,3 +15,10 @@ log = "0.4.17"
 rand = "0.8.5"
 rayon = "1.5.3"
 tobj = "3.2.3"
+
+[features]
+default = []
+# default = ["debug"]
+debug = ["counter", "counter_time"]
+counter_time = []
+counter = []

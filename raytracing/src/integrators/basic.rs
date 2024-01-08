@@ -3,7 +3,7 @@ use crate::{
     math::vec::{RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
     renderer::{RayResult, Renderer},
-    shape::{IntersectionResult, Shape},
+    shape::{IntersectionResult, Shape}, timed_scope_accumulate,
 };
 
 use super::Integrator;
@@ -22,7 +22,10 @@ impl Integrator for BasicIntegrator {
         // Prevent auto intersection
         let ray = Ray::new_with_range(ray.origin, ray.direction, 0.01..ray.bounds.1);
 
-        let IntersectionResult::Instersection(record) = renderer.objects.intersection_full(ray) else  {
+        let isect = timed_scope_accumulate!("Intersection", || {
+            renderer.objects.intersection_full(ray)
+        });
+        let IntersectionResult::Instersection(record) = isect else  {
             return self.sky_ray(renderer, ray);
         };
 

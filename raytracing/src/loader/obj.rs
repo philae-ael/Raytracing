@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::{
     aggregate::shapelist::{ShapeList, ShapeListEntry},
     color::Rgb,
-    material::{texture, Diffuse, Emit, Material, MaterialDescriptor, MaterialId, MixMaterial},
+    material::{texture, Diffuse, Emit, MaterialId, MixMaterial},
     math::{
         point::Point,
         transform::{Transform, Transformer},
@@ -57,26 +57,29 @@ impl ObjLoaderExt for Scene {
                         })
                 });
 
-                let scene_mat: Box<dyn Material + Sync + Send> = if let Some(ke) = ke {
-                    Box::new(MixMaterial {
-                        p: 0.5,
-                        mat1: Diffuse {
+                let mat_id = if let Some(ke) = ke {
+                    self.insert_material(
+                        None,
+                        MixMaterial {
+                            p: 0.5,
+                            mat1: Diffuse {
+                                texture: Box::new(texture::Uniform(Rgb::from_array(
+                                    material.diffuse,
+                                ))),
+                            },
+                            mat2: Emit {
+                                texture: Box::new(texture::Uniform(Rgb::from_array(ke))),
+                            },
+                        },
+                    )
+                } else {
+                    self.insert_material(
+                        None,
+                        Diffuse {
                             texture: Box::new(texture::Uniform(Rgb::from_array(material.diffuse))),
                         },
-                        mat2: Emit {
-                            texture: Box::new(texture::Uniform(Rgb::from_array(ke))),
-                        },
-                    })
-                } else {
-                    Box::new(Diffuse {
-                        texture: Box::new(texture::Uniform(Rgb::from_array(material.diffuse))),
-                    })
+                    )
                 };
-
-                let mat_id = self.insert_material(MaterialDescriptor {
-                    label: Some("()".to_owned()),
-                    material: scene_mat,
-                });
 
                 log::debug!(
                     "Inserting material {} with diffuse {:?} on mat_id {:?}",

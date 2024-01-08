@@ -10,7 +10,7 @@ use cli::Cli;
 use raytracing::{
     integrators::{BasicIntegrator, Integrator, WhittedIntegrator},
     scene::{
-        examples::{CornellBoxScene, DebugScene, SpheresScene, StandfordBunnyScene},
+        examples::{CornellBoxScene, DebugScene, SpheresScene, StandfordBunnyScene, DragonScene},
         Scene,
     },
 };
@@ -22,6 +22,7 @@ pub enum AvailableScene {
     CornellBox,
     Spheres,
     Debug,
+    Dragon
 }
 
 impl Into<Scene> for AvailableScene {
@@ -31,6 +32,7 @@ impl Into<Scene> for AvailableScene {
             AvailableScene::CornellBox => CornellBoxScene.into(),
             AvailableScene::Spheres => SpheresScene.into(),
             AvailableScene::Debug => DebugScene.into(),
+            AvailableScene::Dragon=> DragonScene.into(),
         }
     }
 }

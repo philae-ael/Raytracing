@@ -6,7 +6,7 @@ use crate::{
     camera::{Camera, PixelCoord, ViewportCoord},
     color::{self, Luma, Rgb},
     integrators::Integrator,
-    material::{texture::Uniform, Emit, MaterialDescriptor, MaterialId},
+    material::{MaterialDescriptor, MaterialId},
     math::{
         point::Point,
         quaternion::LookAt,
@@ -271,14 +271,7 @@ impl Into<Renderer> for DefaultRenderer {
             0.0,
         );
 
-        let mut scene = self.scene;
-
-        let sky_mat = scene.insert_material(MaterialDescriptor {
-            label: Some("Sky".to_owned()),
-            material: Box::new(Emit {
-                texture: Box::new(Uniform(Vec3::splat(0.3).rgb())),
-            }),
-        });
+        let scene = self.scene;
 
         // let objects = Box::new(scene.objects);
         let objects = Box::new(BVH::from_shapelist(scene.objects));
@@ -290,7 +283,7 @@ impl Into<Renderer> for DefaultRenderer {
             lights: scene.lights,
             options: RendererOptions {
                 samples_per_pixel: self.spp,
-                world_material: sky_mat,
+                world_material: scene.sky_material,
                 allowed_error: self.allowed_error,
             },
             integrator: self.integrator,

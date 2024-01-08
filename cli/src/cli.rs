@@ -24,6 +24,7 @@ pub struct Cli {
 impl Cli {
     pub fn new(args: Args) -> Result<Self> {
         if args.no_threads {
+            log::warn!("Working on only one thread");
             // Only one thread == Not Threaded
             rayon::ThreadPoolBuilder::new()
                 .num_threads(1)

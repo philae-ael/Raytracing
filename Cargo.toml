@@ -1,2 +1,5 @@
 [workspace]
 members = ["raytracing", "cli"]
+
+[profile.release] 
+debug = 2

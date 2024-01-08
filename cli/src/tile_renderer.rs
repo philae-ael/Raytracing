@@ -1,16 +1,14 @@
 use std::sync::mpsc::{channel, Receiver};
 
 use bytemuck::Zeroable;
-use rand::distributions::Alphanumeric;
 use rand::seq::SliceRandom;
-use rand::{thread_rng, Rng};
+use rand::thread_rng;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 use raytracing::progress;
 use raytracing::renderer::{DefaultRenderer, RenderResult, Renderer};
 
 use itertools::Itertools;
 use raytracing::scene::Scene;
-use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
 pub struct TileMsg {
     pub tile_x: u32,
@@ -18,7 +16,7 @@ pub struct TileMsg {
     pub data: Vec<RenderResult>,
 }
 
-pub struct TevRenderer {
+pub struct TileRenderer {
     pub height: u32,
     pub width: u32,
     pub spp: u32,
@@ -26,16 +24,8 @@ pub struct TevRenderer {
     pub scene: Scene,
 }
 
-impl TevRenderer {
-    fn get_id() -> String {
-        rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(7)
-            .map(char::from)
-            .collect()
-    }
-
-    pub fn run(self, mut client: TevClient) -> anyhow::Result<()> {
+impl TileRenderer {
+    pub fn run<F: FnMut(TileMsg) -> () + Send>(self, on_tile_rendered: F) -> anyhow::Result<()> {
         let width = self.width;
         let height = self.height;
         let tile_size = self.tile_size;
@@ -47,32 +37,6 @@ impl TevRenderer {
 
         let tile_count_x = (width as f32 / tile_size as f32).ceil() as u32;
         let tile_count_y = (height as f32 / tile_size as f32).ceil() as u32;
-
-        let image_name = format!("raytraced-{}", Self::get_id());
-
-        let channel_names = [
-            "R",
-            "G",
-            "B", // color
-            "normal.X",
-            "normal.Y",
-            "normal.Z", // normal
-            "albedo.R",
-            "albedo.G",
-            "albedo.B", // albedo
-            "Z",        // depth
-            "ray_depth",
-        ];
-        let channel_offset = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let channel_stride = [11; 11];
-
-        client.send(PacketCreateImage {
-            image_name: &image_name,
-            grab_focus: true,
-            channel_names: &channel_names,
-            width,
-            height,
-        })?;
 
         let progress = progress::Progress::new((tile_count_x * tile_count_y) as usize);
         let mut generation_result = Ok(());
@@ -89,30 +53,10 @@ impl TevRenderer {
 
             log::info!("Generating image...");
             s.spawn(|_| {
+                let mut on_tile_rendered = on_tile_rendered;
                 let rx: Receiver<TileMsg> = rx; // Force move without moving anything else
                 for msg in rx.iter() {
-                    let x = msg.tile_x * tile_size;
-                    let y = msg.tile_y * tile_size;
-                    let tile_width = (x + tile_size).min(width) - x;
-                    let tile_height = (y + tile_size).min(height) - y;
-
-                    assert!(msg.data.len() == (tile_width * tile_height) as usize);
-                    let data = bytemuck::cast_slice(msg.data.as_slice());
-
-                    client
-                        .send(PacketUpdateImage {
-                            image_name: &image_name,
-                            grab_focus: false,
-                            channel_names: &channel_names,
-                            channel_offsets: &channel_offset,
-                            channel_strides: &channel_stride,
-                            x,
-                            y,
-                            width: tile_width,
-                            height: tile_height,
-                            data,
-                        })
-                        .unwrap();
+                    on_tile_rendered(msg);
                     progress.print();
                 }
             });

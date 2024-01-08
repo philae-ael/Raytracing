@@ -51,8 +51,8 @@ pub enum AvailableIntegrator {
 impl Into<Box<dyn Integrator>> for AvailableIntegrator {
     fn into(self) -> Box<dyn Integrator> {
         match self {
-            AvailableIntegrator::Basic => Box::new(BasicIntegrator { max_depth: 20 }),
-            AvailableIntegrator::Whitted => Box::new(WhittedIntegrator { max_depth: 20 }),
+            AvailableIntegrator::Basic => Box::new(BasicIntegrator { max_depth: 64 }),
+            AvailableIntegrator::Whitted => Box::new(WhittedIntegrator { max_depth: 64 }),
         }
     }
 }

@@ -48,3 +48,5 @@ macro_rules! counter {
         COUNTER_REF.inc();
     };
 }
+
+pub use counter;

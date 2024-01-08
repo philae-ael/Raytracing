@@ -2,21 +2,19 @@ use std::ops::Add;
 
 use bytemuck::{Pod, Zeroable};
 use image::Rgb;
-use rand::distributions::Distribution;
+use rand::distributions::{self, Distribution};
 
 use crate::{
     aggregate::shapelist::ShapeList,
     camera::{Camera, PixelCoord, ViewportCoord},
-    color::{self, BLACK},
+    color::BLACK,
+    integrators::{BasicIntegrator, Integrator},
     material::{texture::Uniform, Emit, MaterialDescriptor, MaterialId},
     math::{
-        distributions::sphere_uv_from_direction,
         quaternion::LookAt,
         vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
     },
-    ray::Ray,
     scene::Scene,
-    shape::{local_info, IntersectionResult, Shape},
 };
 
 pub struct RendererOptions {
@@ -32,15 +30,16 @@ pub struct Renderer {
 
     // TODO: make a pool of materials
     pub materials: Vec<MaterialDescriptor>,
+    pub integrator: Box<dyn Integrator>,
 }
 
-struct RayResult {
-    normal: Vec3,
-    albedo: Rgb<f32>,
-    color: Rgb<f32>,
-    z: f32,
-    ray_depth: f32,
-    samples_accumulated: u32,
+pub struct RayResult {
+    pub normal: Vec3,
+    pub albedo: Rgb<f32>,
+    pub color: Rgb<f32>,
+    pub z: f32,
+    pub ray_depth: f32,
+    pub samples_accumulated: u32,
 }
 
 impl RayResult {
@@ -190,15 +189,16 @@ impl Renderer {
         let ViewportCoord { vx, vy } = ViewportCoord::from_pixel_coord(&self.camera, coords);
         let pixel_width = 1. / (self.camera.width as f32 - 1.);
         let pixel_height = 1. / (self.camera.height as f32 - 1.);
-        let distribution_x = rand::distributions::Uniform::new(0., pixel_width);
-        let distribution_y = rand::distributions::Uniform::new(0., pixel_height);
+        let distribution_x = distributions::Uniform::new(-pixel_width / 2., pixel_width / 2.);
+        let distribution_y = distributions::Uniform::new(-pixel_height / 2., pixel_height / 2.);
 
         let mut rng = rand::thread_rng();
         let ray_results = (0..self.options.samples_per_pixel)
             .map(|_| {
                 let dvx = distribution_x.sample(&mut rng);
                 let dvy = distribution_y.sample(&mut rng);
-                self.throw_ray(
+                self.integrator.throw_ray(
+                    self,
                     self.camera.ray(vx + dvx, vy + dvy, &mut rng),
                     self.options.diffuse_depth,
                 )
@@ -215,58 +215,6 @@ impl Renderer {
             albedo: ray_results.albedo.0,
             z: ray_results.z,
             ray_depth: ray_results.ray_depth,
-        }
-    }
-
-    fn throw_ray(&self, ray: Ray, depth: u32) -> RayResult {
-        let mut rng = rand::thread_rng();
-        if depth == 0 {
-            return RayResult::default();
-        }
-
-        // Prevent auto intersection
-        let ray = Ray::new_with_range(ray.origin, ray.direction, 0.01..ray.bounds.1);
-
-        if let IntersectionResult::Instersection(record) = self.objects.intersection_full(ray) {
-            // On material hit
-            let material = &self.materials[record.local_info.material.0].material;
-            let scattered = material.scatter(ray, &record.local_info, &mut rng);
-
-            let (color, ray_depth) = if let Some(ray_out) = scattered.ray_out {
-                let ray_result = self.throw_ray(ray_out, depth - 1);
-                (ray_result.color, ray_result.ray_depth)
-            } else {
-                (color::WHITE, 0.0)
-            };
-
-            let color = (color.vec() * scattered.albedo.vec()).rgb();
-
-            RayResult {
-                normal: record.local_info.normal,
-                color,
-                z: record.t,
-                albedo: scattered.albedo,
-                ray_depth: ray_depth + 1.0,
-                samples_accumulated: 1,
-            }
-        } else {
-            // Sky
-            let material = &self.materials[self.options.world_material.0].material;
-            let record = local_info::Full {
-                pos: ray.origin,
-                normal: -ray.direction,
-                material: self.options.world_material,
-                uv: sphere_uv_from_direction(-ray.direction),
-            };
-            let scattered = material.scatter(ray, &record, &mut rng);
-            RayResult {
-                normal: Vec3::ZERO,
-                albedo: color::BLACK,
-                color: scattered.albedo,
-                z: 0.0,
-                ray_depth: 0.0,
-                samples_accumulated: 1,
-            }
         }
     }
 }
@@ -316,6 +264,7 @@ impl Into<Renderer> for DefaultRenderer {
                 gamma: 1.0,
                 world_material: sky_mat,
             },
+            integrator: Box::new(BasicIntegrator),
         }
     }
 }

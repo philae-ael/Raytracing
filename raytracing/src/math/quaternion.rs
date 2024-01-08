@@ -2,6 +2,8 @@ use glam::Vec3;
 
 pub use glam::Quat;
 
+use super::float::FloatAsExt;
+
 pub struct LookAt {
     pub direction: Vec3,
     pub forward: Vec3,
@@ -14,10 +16,12 @@ impl From<LookAt> for Quat {
 
         let cos = forward.dot(direction);
         let angle = cos.acos();
-        if f32::abs(cos.abs() - 1.0) <= 0.01 {
-            return Self::from_axis_angle(Vec3::Y, angle);
+        match (cos.abs() - 1.0).as_non_zero(0.01) {
+            Some(_non_0deg_cos) => {
+                let axe = forward.cross(direction);
+                Self::from_axis_angle(axe.normalize(), angle)
+            }
+            None => Self::from_axis_angle(Vec3::Y, angle),
         }
-        let axe = forward.cross(direction);
-        Self::from_axis_angle(axe.normalize(), angle)
     }
 }

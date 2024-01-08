@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::{ray::Ray, shape::implicit::ImplicitSolver};
+use crate::{math::float::FloatAsExt, ray::Ray, shape::implicit::ImplicitSolver};
 
 use super::ImplicitSolution;
 
@@ -23,9 +23,9 @@ impl ImplicitSolver for NewtonSolver {
         let (ray_start, ray_end) = ray.bounds;
         loop {
             let ft = f_along_ray(t);
-            if ft.abs() < self.eps {
-                break;
-            } else if steps >= self.max_iter {
+            let Some(ft) = ft.as_non_zero(self.eps) else {break};
+
+            if steps >= self.max_iter {
                 //log::info!("No Hit {ft}");
                 return None;
             }
@@ -36,9 +36,8 @@ impl ImplicitSolver for NewtonSolver {
             // thus the use of f_along_ray_unchecked
             let dft = (f_along_ray_unchecked(t + self.eps) - f_along_ray(t)) / self.eps;
 
-            if dft.abs() < self.eps {
-                return None;
-            }
+            // pass this statement, dft guarantedt to be non zero
+            let Some(dft) = dft.as_non_zero(self.eps) else {return  None};
 
             let new_t = t - ft / dft;
             t = new_t.min(ray_end).max(ray_start);

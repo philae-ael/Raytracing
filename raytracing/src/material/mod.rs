@@ -1,4 +1,5 @@
 pub mod texture;
+use std::fmt::Debug;
 use std::path::Path;
 
 use image::Rgb;
@@ -18,6 +19,14 @@ use self::texture::Texture;
 pub struct MaterialDescriptor {
     pub label: Option<String>,
     pub material: Box<dyn Material + Sync>,
+}
+
+impl Debug for MaterialDescriptor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MaterialDescriptor")
+            .field("label", &self.label)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -52,6 +61,31 @@ fn non_zero_or(v: Vec3, n: Vec3) -> Vec3 {
         n
     } else {
         v
+    }
+}
+
+pub struct MixMaterial<Mat1: Material, Mat2: Material> {
+    pub p: f32,
+    pub mat1: Mat1,
+    pub mat2: Mat2,
+}
+
+impl<Mat1: Material, Mat2: Material> Material for MixMaterial<Mat1, Mat2> {
+    fn scatter(
+        &self,
+        ray: Ray,
+        record: &local_info::Full,
+        rng: &mut rand::rngs::ThreadRng,
+    ) -> Scattered {
+        let dist = Uniform::new_inclusive(0.0, 1.0);
+        let sample = dist.sample(rng);
+
+        let p = self.p;
+        if sample < p {
+            self.mat1.scatter(ray, record, rng)
+        } else {
+            self.mat2.scatter(ray, record, rng)
+        }
     }
 }
 
@@ -236,13 +270,13 @@ impl Material for Phong {
     }
 }
 
+/// Based of the [http://artis.imag.fr/~Cyril.Soler/DEA/NonPhotoRealisticRendering/Papers/p447-gooch.pdf](original paper on Gooch shading)
 pub struct Gooch {
-    pub ambiant: Rgb<f32>,
-    pub albedo: Rgb<f32>,
+    pub diffuse: Rgb<f32>,
     pub smoothness: f32,
     pub light_dir: Vec3,
-    pub cool: Rgb<f32>,
-    pub warm: Rgb<f32>,
+    pub yellow: Rgb<f32>,
+    pub blue: Rgb<f32>,
 }
 
 impl NonRealisticMaterial for Gooch {}
@@ -257,14 +291,17 @@ impl Material for Gooch {
         let gooch_factor = (1. + record.normal.dot(light_dir)) / 2.;
         let alpha = 0.4;
         let beta = 0.6;
-        let cool = self.cool.vec() + alpha * self.albedo.vec();
-        let warm = self.warm.vec() + beta * self.albedo.vec();
-        let diffuse = gooch_factor * warm + (1.0 - gooch_factor) * cool;
+        let cool = alpha * self.blue.vec();
+        let warm = beta * self.yellow.vec();
+        let diffuse = gooch_factor * cool + (1.0 - gooch_factor) * warm;
 
-        let omega = -light_dir.reflect(record.normal).dot(ray.direction);
+        let omega = light_dir
+            .reflect(record.normal)
+            .dot(-ray.direction)
+            .clamp(0.0, 1.0);
         let specular = omega.powf(self.smoothness);
 
-        let color = specular * Vec3::ONE + diffuse + self.ambiant.vec();
+        let color = specular * Vec3::ONE + diffuse;
         Scattered {
             albedo: color.rgb(),
             ray_out: None,

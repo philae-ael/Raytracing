@@ -1,8 +1,6 @@
 use std::sync::mpsc::Sender;
 
 use image::Rgba;
-use rand::seq::SliceRandom;
-use rand::thread_rng;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 use raytracing::progress;
 use raytracing::renderer::{DefaultRenderer, Renderer};
@@ -44,8 +42,7 @@ impl GUIRenderer {
                 }
             });
 
-            let mut v = (0..width).cartesian_product(0..height).collect::<Vec<_>>();
-            v.shuffle(&mut thread_rng());
+            let v = (0..width).cartesian_product(0..height).collect::<Vec<_>>();
 
             // Note that this will stop whenever channel is closed (Aka. the receiver channel is closed)
             let generation_result = v.into_iter().par_bridge().try_for_each_with(

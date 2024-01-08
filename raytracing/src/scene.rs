@@ -1,108 +1,78 @@
-use glam::Vec3;
+use glam::{Quat, Vec3};
 use image::Rgb;
 
 use crate::{
     aggregate::shapelist::ShapeList,
-    material::{texture, Dielectric, Diffuse, Emit, MaterialDescriptor, MaterialId, Metal},
-    shape::{Sphere, TriangleBuilder},
+    loader::ObjLoaderExt,
+    material::{texture, Emit, Gooch, MaterialDescriptor, MaterialId},
+    math::transform::Transform,
+    shape::Shape,
 };
 
 pub struct DefaultScene;
 
+#[derive(Default)]
 pub struct Scene {
     pub objects: ShapeList,
     pub materials: Vec<MaterialDescriptor>,
 }
 
-impl Into<Scene> for DefaultScene {
-    fn into(self) -> Scene {
-        let materials: Vec<MaterialDescriptor> = vec![
-            MaterialDescriptor {
-                label: Some("Bubble like".to_string()),
-                material: Box::new(Dielectric {
-                    texture: Box::new(texture::Uniform(Rgb([0.7, 0.3, 0.3]))),
-                    ior: 0.8,
-                    invert_normal: false,
-                }),
-            },
-            MaterialDescriptor {
-                label: Some("Diffuse orange".to_string()),
-                material: Box::new(Diffuse {
-                    texture: Box::new(texture::Uniform(Rgb([0.8, 0.6, 0.2]))),
-                }),
-            },
-            MaterialDescriptor {
-                label: Some("Gray metal".to_string()),
-                material: Box::new(Metal {
-                    texture: Box::new(texture::Uniform(Rgb([0.8, 0.8, 0.8]))),
-                    roughness: 0.6,
-                }),
-            },
-            MaterialDescriptor {
-                label: Some("Ground".to_string()),
-                material: Box::new(Diffuse {
-                    texture: Box::new(texture::Uniform(Rgb([0.2, 0.4, 0.3]))),
-                }),
-            },
-            MaterialDescriptor {
-                label: Some("Light".to_string()),
-                material: Box::new(Emit {
-                    texture: Box::new(texture::Uniform(Rgb([2.5, 3.7, 3.9]))),
-                }),
-            },
-            MaterialDescriptor {
-                label: Some("Sky".to_string()),
-                material: Box::new(Emit {
-                    texture: Box::new(texture::Uniform(Rgb([0.5, 0.8, 0.5]))),
-                }),
-            },
-        ];
+impl Scene {
+    /// Insert an object in the scene
+    pub fn insert_object<T: Shape + Sync + 'static>(&mut self, object: T) {
+        self.objects.0.push(Box::new(object))
+    }
 
-        let objects = ShapeList(vec![
-            Box::new(
-                TriangleBuilder {
-                    vertices: [
-                        Vec3::new(0.0, 0.0, -2.0),
-                        Vec3::new(2.0, 0.0, -2.0),
-                        Vec3::new(0.0, 2.0, -2.0),
-                    ],
-                    ..Default::default()
-                }
-                .build(MaterialId(1)),
-            ),
-            Box::new(Sphere {
-                center: Vec3::new(0.0, 0.0, -1.),
-                radius: 0.5,
-                material: MaterialId(0),
-            }),
-            Box::new(crate::shape::implicit::ImplicitShape {
-                surface: crate::shape::implicit::Cube {
-                    origin: Vec3::new(1.0, 0.0, -1.),
-                    size: 0.5,
-                },
-                solver: crate::shape::implicit::solvers::NewtonSolver {
-                    max_iter: 2,
-                    eps: 0.01,
-                },
-                material: MaterialId(1),
-            }),
-            Box::new(Sphere {
-                center: Vec3::new(-1.0, 0.0, -1.),
-                radius: 0.5,
-                material: MaterialId(2),
-            }),
-            Box::new(Sphere {
-                center: Vec3::new(0.0, -100.5, -1.),
-                radius: 100.,
-                material: MaterialId(3),
-            }),
-            Box::new(Sphere {
-                center: Vec3::new(0.5, -0.4, -0.5),
-                radius: 0.1,
-                material: MaterialId(4),
-            }),
-        ]);
+    /// Insert a material and returns the Material ID associated with this material
+    pub fn insert_material(&mut self, material: MaterialDescriptor) -> MaterialId {
+        self.materials.push(material);
+        MaterialId(self.materials.len() - 1)
+    }
+}
 
-        return Scene { objects, materials };
+impl From<DefaultScene> for Scene {
+    fn from(_: DefaultScene) -> Self {
+        let mut scene = Scene::default();
+
+        let default_material = scene.insert_material(MaterialDescriptor {
+            label: Some("Goosh - Default".to_string()),
+            material: Box::new(Gooch {
+                diffuse: Rgb([1.0, 0., 0.]),
+                smoothness: 20.0,
+                light_dir: Vec3::new(-1.0, -1.0, 0.0),
+                yellow: Rgb([0.8, 0.8, 0.0]),
+                blue: Rgb([0.0, 0.0, 0.8]),
+            }),
+        });
+
+        let _sky_material = scene.insert_material(MaterialDescriptor {
+            label: Some("Sky".to_string()),
+            material: Box::new(Emit {
+                texture: Box::new(texture::Uniform(Rgb([0.5, 0.7, 0.9]))),
+            }),
+        });
+
+        scene.load_obj(
+            "./obj/cornell_box.obj",
+            Transform {
+                translation: Vec3::new(0.0, -0.5, -0.5),
+                scale: Vec3::splat(0.5),
+                rot: Quat::IDENTITY,
+            },
+            default_material,
+        );
+
+        // let light_mat = scene.insert_material(MaterialDescriptor {
+        //     label: Some("Light".to_owned()),
+        //     material: Box::new(Diffuse {
+        //         texture: Box::new(texture::Uniform(Rgb([0.8, 0.8, 1.0]))),
+        //     }),
+        // });
+        // scene.insert_object(Sphere {
+        //     center: Vec3::new(0.5, 0.0, -1.0),
+        //     radius: 0.01,
+        //     material: light_mat,
+        // });
+        scene
     }
 }

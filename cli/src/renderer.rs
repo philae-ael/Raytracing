@@ -1,20 +1,27 @@
-use std::sync::{
-    mpsc::{channel, Receiver},
-    Arc,
+use std::{
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc,
+    },
 };
 
-use crate::Dimensions;
+use crate::{Dimensions, Spp};
 
 use super::progress;
-use bytemuck::Zeroable;
-use image::{ImageBuffer, Luma, Rgb32FImage};
-use rand::seq::SliceRandom;
-use rand::thread_rng;
-use rayon::prelude::{ParallelBridge, ParallelIterator};
+
+use image::{ImageBuffer, Rgb32FImage};
+use rand::{distributions, seq::SliceRandom};
+use rand::{prelude::Distribution, thread_rng};
+use rayon::prelude::{
+    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator,
+    ParallelIterator,
+};
 use raytracing::{
-    camera::PixelCoord,
+    camera::{Camera, PixelCoord, ViewportCoord},
     integrators::Integrator,
-    renderer::{Channel, DefaultRenderer, GenericRenderResult, PixelRenderResult, Renderer},
+    math::{point::Point, quaternion::LookAt, vec::Vec3},
+    renderer::{Channel, GenericRenderResult, PixelRenderResult, RaySeries, World},
+    utils::counter::counter,
 };
 
 use itertools::Itertools;
@@ -42,9 +49,9 @@ impl TileMsg {
     }
 }
 
-pub struct TileRendererCreateInfo {
+pub struct RendererCreateInfo {
     pub dimension: Dimensions,
-    pub spp: u32,
+    pub spp: Spp,
     pub tile_size: u32,
     pub scene: Scene,
     pub shuffle_tiles: bool,
@@ -52,32 +59,51 @@ pub struct TileRendererCreateInfo {
     pub allowed_error: Option<f32>,
 }
 
-pub struct TileRenderer {
+pub struct Renderer {
     pub dimension: Dimensions,
     pub tile_size: u32,
     pub shuffle_tiles: bool,
-    pub renderer: Renderer,
+
+    pub samples_per_pixel: Spp,
+    pub allowed_error: Option<f32>,
+
+    pub world: World,
+    // TODO: make a pool of materials
+    pub integrator: Box<dyn Integrator>,
+    camera: Camera,
 }
 
-type Luma32FImage = image::ImageBuffer<Luma<f32>, Vec<f32>>;
+type Luma32FImage = image::ImageBuffer<image::Luma<f32>, Vec<f32>>;
 pub type OutputBuffers = GenericRenderResult<Rgb32FImage, Luma32FImage>;
 
-impl TileRenderer {
-    pub fn new(tile_create_info: TileRendererCreateInfo) -> Self {
-        Self {
-            dimension: tile_create_info.dimension.clone(),
-            tile_size: tile_create_info.tile_size,
-            shuffle_tiles: tile_create_info.shuffle_tiles,
-
-            renderer: DefaultRenderer {
-                width: tile_create_info.dimension.width,
-                height: tile_create_info.dimension.height,
-                spp: tile_create_info.spp,
-                scene: tile_create_info.scene,
-                integrator: tile_create_info.integrator,
-                allowed_error: tile_create_info.allowed_error,
+impl Renderer {
+    pub fn new(tile_create_info: RendererCreateInfo) -> Self {
+        let look_at = Point::new(0.0, 0.0, -1.0);
+        let look_from = Point::ORIGIN;
+        let look_direction = look_at - look_from;
+        let camera = Camera::new(
+            tile_create_info.dimension.width,
+            tile_create_info.dimension.height,
+            f32::to_radians(70.),
+            look_direction.length(),
+            look_from,
+            LookAt {
+                direction: look_direction,
+                forward: Vec3::NEG_Z,
             }
             .into(),
+            0.0,
+        );
+
+        Self {
+            dimension: tile_create_info.dimension.clone(),
+            samples_per_pixel: tile_create_info.spp,
+            tile_size: tile_create_info.tile_size,
+            shuffle_tiles: tile_create_info.shuffle_tiles,
+            allowed_error: tile_create_info.allowed_error,
+            integrator: tile_create_info.integrator,
+            world: World::from_scene(tile_create_info.scene),
+            camera,
         }
     }
 
@@ -138,10 +164,15 @@ impl TileRenderer {
         let tile_count_x = (width as f32 / tile_size as f32).ceil() as u32;
         let tile_count_y = (height as f32 / tile_size as f32).ceil() as u32;
 
-        let progress = progress::Progress::new((tile_count_x * tile_count_y) as usize);
-        let mut generation_result = Ok(());
+        let progress = match self.samples_per_pixel {
+            Spp::Spp(s) => progress::Progress::new((s * tile_count_x * tile_count_y) as usize),
+            Spp::Inf => progress::Progress::new_inf(),
+        };
 
-        rayon::scope(|s| {
+        let mut tiles_data = Vec::new();
+        tiles_data.resize_with((tile_count_x * tile_count_y) as usize, || None);
+
+        let generation_result: Result<()> = rayon::scope(|s| {
             let (tx, rx) = channel();
 
             log::info!("Generating image...");
@@ -161,8 +192,8 @@ impl TileRenderer {
                     }
 
                     if last_progress_update.elapsed() >= std::time::Duration::from_millis(300) {
-                        progress.print();
-                        last_progress_update = std::time::Instant::now();
+                       progress.print();
+                       last_progress_update = std::time::Instant::now();
                     }
                 }
                 progress.print();
@@ -171,6 +202,7 @@ impl TileRenderer {
             // Product Tiles indices
             let mut v = (0..tile_count_x)
                 .cartesian_product(0..tile_count_y)
+                .into_iter()
                 .collect::<Vec<_>>();
 
             // reorder them if needed
@@ -178,25 +210,55 @@ impl TileRenderer {
                 v.shuffle(&mut thread_rng());
             }
 
-            // Dispatch work
-            generation_result = v.into_iter().par_bridge().try_for_each_with(
-                tx.clone(),
-                |tx, (tile_x, tile_y)| -> Result<()> {
-                    let data = self.tile_worker((tile_x, tile_y));
+            let process_sample_batch =
+                |(tx, sample_count): &mut (Sender<Message>, u32),
+                 ((tile_x, tile_y), data): ((u32, u32), &mut Option<Vec<RaySeries>>)|
+                 -> Result<()> {
+                    self.tile_worker((tile_x, tile_y), data, *sample_count);
                     progress.inc();
 
                     // Broadcast results to the thread which is in charge
                     tx.send(Message::Tile(Arc::new(TileMsg {
                         tile_x,
                         tile_y,
-                        data,
+                        data: data
+                            .as_ref()
+                            .unwrap()
+                            .iter()
+                            .map(|x| x.as_pixelresult())
+                            .collect::<Vec<_>>(),
                     })))?;
 
                     Ok(())
-                },
-            );
+                };
 
-            tx.send(Message::Stop).unwrap();
+            let samples_per_batch = 32;
+            // Dispatch work
+            match self.samples_per_pixel {
+                Spp::Spp(s) => {
+                    for sample_batch in 0..=s / samples_per_batch {
+                        let sample_count = s - sample_batch * s / samples_per_batch;
+                        v.par_iter()
+                            .copied()
+                            .zip(tiles_data.par_iter_mut())
+                            .try_for_each_with((tx.clone(), sample_count), process_sample_batch)?;
+                    }
+                }
+                Spp::Inf => {
+                    for _sample_batch in 0.. {
+                        v.par_iter()
+                            .copied()
+                            .zip(tiles_data.par_iter_mut())
+                            .try_for_each_with(
+                                (tx.clone(), samples_per_batch),
+                                process_sample_batch,
+                            )?;
+                    }
+                }
+            };
+
+            tx.send(Message::Stop)?;
+            Ok(())
         });
 
         match generation_result {
@@ -207,7 +269,12 @@ impl TileRenderer {
         Ok(output_buffers)
     }
 
-    fn tile_worker(&self, (tile_x, tile_y): (u32, u32)) -> Vec<PixelRenderResult> {
+    fn tile_worker(
+        &self,
+        (tile_x, tile_y): (u32, u32),
+        data: &mut Option<Vec<RaySeries>>,
+        sample_count: u32,
+    ) {
         let x_range =
             (tile_x * self.tile_size)..((tile_x + 1) * self.tile_size).min(self.dimension.width);
         let y_range =
@@ -215,21 +282,51 @@ impl TileRenderer {
         let tile_width = x_range.len();
         let tile_height = y_range.len();
 
-        let mut data = Vec::new();
-        data.resize(tile_width * tile_height, PixelRenderResult::zeroed());
+        let tile_data = if let Some(ref mut tile) = data {
+            tile
+        } else {
+            let mut tile_data = Vec::new();
+            tile_data.resize_with(tile_width * tile_height, || RaySeries::default());
+            *data = Some(tile_data);
+            data.as_mut().unwrap()
+        };
 
         for (j, y) in y_range.clone().enumerate() {
             for (i, x) in x_range.clone().enumerate() {
                 let index = j * tile_width as usize + i;
-                data[index] = self.pixel_worker(PixelCoord { x, y });
+                tile_data[index].merge(self.pixel_worker(PixelCoord { x, y }, sample_count));
             }
         }
 
         log::debug!("Tile {tile_x} {tile_y} done !");
-        data
     }
 
-    fn pixel_worker(&self, coords: PixelCoord) -> PixelRenderResult {
-        self.renderer.process_pixel(coords)
+    fn pixel_worker(&self, coords: PixelCoord, samples: u32) -> RaySeries {
+        let ViewportCoord { vx, vy } = ViewportCoord::from_pixel_coord(&self.camera, coords);
+        let pixel_width = 1. / (self.camera.width as f32 - 1.);
+        let pixel_height = 1. / (self.camera.height as f32 - 1.);
+        let distribution_x = distributions::Uniform::new(-pixel_width / 2., pixel_width / 2.);
+        let distribution_y = distributions::Uniform::new(-pixel_height / 2., pixel_height / 2.);
+
+        let mut rng = rand::thread_rng();
+        let mut ray_series = RaySeries::default();
+
+        for _ in 0..samples {
+            counter!("Samples");
+            let dvx = distribution_x.sample(&mut rng);
+            let dvy = distribution_y.sample(&mut rng);
+            let camera_ray = self.camera.ray(vx + dvx, vy + dvy, &mut rng);
+
+            ray_series.add_sample(self.integrator.ray_cast(&self.world, camera_ray, 0));
+
+            if let Some(allowed_error) = self.allowed_error {
+                if let Some(_) = ray_series.color.is_precise_enough(allowed_error) {
+                    counter!("Adaptative sampling break");
+                    break;
+                }
+            }
+        }
+
+        ray_series
     }
 }

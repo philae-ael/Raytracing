@@ -14,6 +14,10 @@ impl<S: colorspace::Colorspace> Color<S> {
         self.0
     }
 
+    pub fn to_byte_array(self) -> [u8; 3] {
+        self.0.map(|c| (c * 255. + 0.5) as u8)
+    }
+
     pub fn convert<S2: colorspace::Colorspace>(self) -> Color<S2> {
         Color::from_array(S2::from_cie_xyz(S::to_cie_xyz(self.to_array())))
     }

@@ -2,7 +2,7 @@ use anyhow::Result;
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb};
 use std::path::PathBuf;
 
-use crate::{cli::FinalOutput, tile_renderer::OutputBuffers};
+use crate::{cli::FinalOutput, renderer::OutputBuffers};
 
 pub struct FileOutput {
     pub hdr_outdir: Option<PathBuf>,

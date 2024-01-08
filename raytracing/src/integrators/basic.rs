@@ -2,7 +2,7 @@ use crate::{
     color,
     math::vec::{RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
-    renderer::{RayResult, Renderer},
+    renderer::{RayResult, World},
     shape::IntersectionResult,
     timed_scope_accumulate,
 };
@@ -14,7 +14,7 @@ pub struct BasicIntegrator {
 }
 
 impl Integrator for BasicIntegrator {
-    fn ray_cast(&self, renderer: &Renderer, ray: Ray, depth: u32) -> RayResult {
+    fn ray_cast(&self, world: &World, ray: Ray, depth: u32) -> RayResult {
         let mut rng = rand::thread_rng();
         if depth == self.max_depth {
             return RayResult::default();
@@ -24,18 +24,18 @@ impl Integrator for BasicIntegrator {
         let ray = Ray::new_with_range(ray.origin, ray.direction, 0.01..ray.bounds.1);
 
         let isect = timed_scope_accumulate!("Intersection", || {
-            renderer.objects.intersection_full(ray)
+            world.objects.intersection_full(ray)
         });
         let IntersectionResult::Intersection(record) = isect else  {
-            return self.sky_ray(renderer, ray);
+            return self.sky_ray(world, ray);
         };
 
         // On material hit
-        let material = &renderer.materials[record.local_info.material.0].material;
+        let material = &world.materials[record.local_info.material.0].material;
         let scattered = material.scatter(ray, &record.local_info, &mut rng);
 
         let (color, depth) = if let Some(ray_out) = scattered.ray_out {
-            let ray_result = self.ray_cast(renderer, ray_out, depth + 1);
+            let ray_result = self.ray_cast(world, ray_out, depth + 1);
             (ray_result.color, ray_result.ray_depth + 1.0)
         } else {
             (color::linear::WHITE, depth as f32)

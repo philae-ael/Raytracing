@@ -1,14 +1,15 @@
-use image::Rgb;
+use crate::color::Rgb;
+
 
 pub type Uv = [f32; 2];
 pub trait Texture: Sync + Send {
-    fn color(&self, uv: Uv) -> Rgb<f32>;
+    fn color(&self, uv: Uv) -> Rgb;
 }
 
-pub struct Uniform(pub Rgb<f32>);
+pub struct Uniform(pub Rgb);
 
 impl Texture for Uniform {
-    fn color(&self, _: Uv) -> Rgb<f32> {
+    fn color(&self, _: Uv) -> Rgb {
         self.0
     }
 }
@@ -19,7 +20,7 @@ pub struct Checker {
 }
 
 impl Texture for Checker {
-    fn color(&self, uv: Uv) -> Rgb<f32> {
+    fn color(&self, uv: Uv) -> Rgb {
         let fu = 10.;
         let fv = 10.;
         let wu = std::f32::consts::TAU * fu;

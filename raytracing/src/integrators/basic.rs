@@ -34,7 +34,7 @@ impl Integrator for BasicIntegrator {
             let ray_result = self.ray_cast(renderer, ray_out, depth + 1);
             ray_result.color
         } else {
-            color::WHITE
+            color::linear::WHITE
         };
 
         let color = (color.vec() * scattered.albedo.vec()).rgb();

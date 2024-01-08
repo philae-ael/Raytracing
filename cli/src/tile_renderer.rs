@@ -7,14 +7,14 @@ use crate::Dimensions;
 
 use super::progress;
 use bytemuck::Zeroable;
-use image::{ImageBuffer, Luma, Rgb, Rgb32FImage};
+use image::{ImageBuffer, Luma, Rgb32FImage};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 use raytracing::{
     camera::PixelCoord,
     integrators::Integrator,
-    renderer::{DefaultRenderer, GenericRenderResult, PixelRenderResult, Renderer},
+    renderer::{DefaultRenderer, GenericRenderResult, PixelRenderResult, Renderer, Channel},
 };
 
 use itertools::Itertools;
@@ -105,23 +105,23 @@ impl TileRenderer {
                     let data_index = (i + width * j) as usize;
                     for channel in msg.data[data_index] {
                         match channel {
-                            raytracing::renderer::Channel::Color(c) => {
-                                *output_buffers.color.get_pixel_mut(x + i, y + j) = Rgb(c)
+                            Channel::Color(c) => {
+                                *output_buffers.color.get_pixel_mut(x + i, y + j) = c.to_srgb().into()
                             }
-                            raytracing::renderer::Channel::Normal(c) => {
-                                *output_buffers.normal.get_pixel_mut(x + i, y + j) = Rgb(c)
+                            Channel::Normal(c) => {
+                                *output_buffers.normal.get_pixel_mut(x + i, y + j) = c.to_srgb().into()
                             }
-                            raytracing::renderer::Channel::Albedo(c) => {
-                                *output_buffers.albedo.get_pixel_mut(x + i, y + j) = Rgb(c)
+                            Channel::Albedo(c) => {
+                                *output_buffers.albedo.get_pixel_mut(x + i, y + j) = c.to_srgb().into()
                             }
-                            raytracing::renderer::Channel::Position(c) => {
-                                *output_buffers.position.get_pixel_mut(x + i, y + j) = Rgb(c)
+                            Channel::Position(c) => {
+                                *output_buffers.position.get_pixel_mut(x + i, y + j) = c.to_srgb().into()
                             }
-                            raytracing::renderer::Channel::Z(c) => {
-                                *output_buffers.z.get_pixel_mut(x + i, y + j) = Luma([c])
+                            Channel::Z(c) => {
+                                *output_buffers.z.get_pixel_mut(x + i, y + j) = c.into()
                             }
-                            raytracing::renderer::Channel::RayDepth(c) => {
-                                *output_buffers.ray_depth.get_pixel_mut(x + i, y + j) = Luma([c])
+                            Channel::RayDepth(c) => {
+                                *output_buffers.ray_depth.get_pixel_mut(x + i, y + j) = c.into()
                             }
                         }
                     }

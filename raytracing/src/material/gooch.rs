@@ -1,7 +1,7 @@
 use glam::Vec3;
-use image::Rgb;
 
 use crate::{
+    color::Rgb,
     math::vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
     shape::local_info,
@@ -11,11 +11,11 @@ use super::{Material, Scattered};
 
 /// Based of the [http://artis.imag.fr/~Cyril.Soler/DEA/NonPhotoRealisticRendering/Papers/p447-gooch.pdf](original paper on Gooch shading)
 pub struct Gooch {
-    pub diffuse: Rgb<f32>,
+    pub diffuse: Rgb,
     pub smoothness: f32,
     pub light_dir: Vec3,
-    pub yellow: Rgb<f32>,
-    pub blue: Rgb<f32>,
+    pub yellow: Rgb,
+    pub blue: Rgb,
 }
 
 impl Material for Gooch {

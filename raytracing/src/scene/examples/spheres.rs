@@ -1,7 +1,7 @@
 use glam::Vec3;
-use image::Rgb;
 
 use crate::{
+    color::Rgb,
     material::{dielectric::Dielectric, texture, Diffuse, Emit, MaterialDescriptor, MixMaterial},
     math::vec::Vec3AsRgbExt,
     scene::Scene,
@@ -15,19 +15,19 @@ impl From<SpheresScene> for Scene {
         let diffuse = scene.insert_material(MaterialDescriptor {
             label: None,
             material: Box::new(Diffuse {
-                texture: Box::new(texture::Uniform(Rgb([0.2, 0.9, 0.7]))),
+                texture: Box::new(texture::Uniform(Rgb::from_array([0.2, 0.9, 0.7]))),
             }),
         });
         let diffuse2 = scene.insert_material(MaterialDescriptor {
             label: None,
             material: Box::new(Diffuse {
-                texture: Box::new(texture::Uniform(Rgb([0.2, 0.3, 0.7]))),
+                texture: Box::new(texture::Uniform(Rgb::from_array([0.2, 0.3, 0.7]))),
             }),
         });
         let glass = scene.insert_material(MaterialDescriptor {
             label: None,
             material: Box::new(Dielectric {
-                texture: Box::new(texture::Uniform(Rgb([1.0, 1.0, 1.0]))),
+                texture: Box::new(texture::Uniform(Rgb::from_array([1.0, 1.0, 1.0]))),
                 ior: 1.5,
             }),
         });
@@ -39,7 +39,7 @@ impl From<SpheresScene> for Scene {
                     texture: Box::new(texture::Uniform(Vec3::splat(15.0).rgb())),
                 },
                 mat2: Diffuse {
-                    texture: Box::new(texture::Uniform(Rgb([0.4, 0.5, 0.3]))),
+                    texture: Box::new(texture::Uniform(Rgb::from_array([0.4, 0.5, 0.3]))),
                 },
             }),
         });

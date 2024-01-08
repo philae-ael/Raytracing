@@ -1,17 +1,16 @@
 use glam::Vec3;
-use image::Rgb;
 
 use crate::{
     math::vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
-    shape::local_info,
+    shape::local_info, color::Rgb,
 };
 
 use super::{Material, Scattered};
 
 pub struct Phong {
-    pub ambiant: Rgb<f32>,
-    pub albedo: Rgb<f32>,
+    pub ambiant: Rgb,
+    pub albedo: Rgb,
     pub smoothness: f32,
     pub light_dir: Vec3,
 }

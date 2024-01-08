@@ -38,7 +38,8 @@ struct RayResult {
     normal: Vec3,
     albedo: Rgb<f32>,
     color: Rgb<f32>,
-    depth: f32,
+    z: f32,
+    ray_depth: f32,
 }
 
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -47,7 +48,8 @@ pub struct RenderResult {
     pub color: [f32; 3],
     pub normal: [f32; 3],
     pub albedo: [f32; 3],
-    pub depth: f32,
+    pub z: f32,
+    pub ray_depth: f32,
 }
 
 pub struct OutputBuffers {
@@ -137,25 +139,29 @@ impl Renderer {
                     RayResult {
                         normal: Vec3::ZERO,
                         color: color::BLACK,
-                        depth: 0.0,
                         albedo: color::BLACK,
+                        ray_depth: 0.0,
+                        z: 0.0,
                     },
                     |RayResult {
                          normal: normal1,
                          color: color1,
-                         depth: depth1,
+                         z: z1,
                          albedo: albedo1,
+                         ray_depth: ray_depth1,
                      },
                      RayResult {
                          normal: normal2,
                          color: color2,
-                         depth: depth2,
+                         z: z2,
                          albedo: albedo2,
+                         ray_depth: ray_depth2,
                      }| RayResult {
                         normal: normal1 + normal2,
                         color: (color1.vec() + color2.vec()).rgb(),
-                        depth: depth1 + depth2,
+                        z: z1 + z2,
                         albedo: (albedo1.vec() + albedo2.vec()).rgb(),
+                        ray_depth: ray_depth1 + ray_depth2,
                     },
                 );
 
@@ -164,8 +170,9 @@ impl Renderer {
             RayResult {
                 normal: ray_results_acc.normal / samples,
                 color: (ray_results_acc.color.vec() / samples).rgb(),
-                depth: ray_results_acc.depth / samples,
+                z: ray_results_acc.z / samples,
                 albedo: (ray_results_acc.albedo.vec() / samples).rgb(),
+                ray_depth: ray_results_acc.ray_depth / samples,
             }
         };
 
@@ -176,41 +183,49 @@ impl Renderer {
             normal: ray_results.normal.to_array(),
             color: color.0,
             albedo: ray_results.albedo.0,
-            depth: ray_results.depth,
+            z: ray_results.z,
+            ray_depth: ray_results.ray_depth,
         }
     }
 
     fn throw_ray(&self, ray: Ray, depth: u32) -> RayResult {
+        let mut rng = rand::thread_rng();
         if depth == 0 {
             return RayResult {
                 normal: Vec3::ZERO,
                 color: color::BLACK,
-                depth: -1.0,
+                z: -1.0,
                 albedo: color::BLACK,
+                ray_depth: 0.0,
             };
         }
-        let mut rng = rand::thread_rng();
 
         // Prevent auto intersection
         let ray = Ray::new_with_range(ray.origin, ray.direction, 0.01..ray.bounds.1);
 
         if let IntersectionResult::Instersection(record) = self.objects.intersection_full(ray) {
+            // On material hit
             let material = &self.materials[record.local_info.material.0].material;
             let scattered = material.scatter(ray, &record.local_info, &mut rng);
 
-            let color = if let Some(ray_out) = scattered.ray_out {
-                self.throw_ray(ray_out, depth - 1).color
+            let (color, ray_depth) = if let Some(ray_out) = scattered.ray_out {
+                let ray_result = self.throw_ray(ray_out, depth - 1);
+                (ray_result.color, ray_result.ray_depth)
             } else {
-                color::WHITE
+                (color::WHITE, 0.0)
             };
-            let color = color::mix(color::MixMode::Mul, color, scattered.albedo);
+            
+            let color = (color.vec() * scattered.albedo.vec()).rgb();
+
             RayResult {
                 normal: record.local_info.normal,
                 color,
-                depth: record.t,
+                z: record.t,
                 albedo: scattered.albedo,
+                ray_depth: ray_depth + 1.0,
             }
         } else {
+            // Sky 
             let material = &self.materials[self.options.world_material.0].material;
             let record = local_info::Full {
                 pos: ray.origin,
@@ -223,7 +238,8 @@ impl Renderer {
                 normal: Vec3::ZERO,
                 albedo: color::BLACK,
                 color: scattered.albedo,
-                depth: 0.0,
+                z: 0.0,
+                ray_depth: 0.0,
             }
         }
     }
@@ -249,7 +265,7 @@ impl Renderer {
                 *p.color = Rgb(render_result.color);
                 *p.normal = Rgb(render_result.normal);
                 *p.albedo = Rgb(render_result.albedo);
-                *p.depth = Luma([render_result.depth as f32]);
+                *p.depth = Luma([render_result.ray_depth as f32]);
                 progress.inc();
             });
         });
@@ -287,10 +303,10 @@ impl Into<Renderer> for DefaultRenderer {
             objects: scene.objects,
             materials: scene.materials,
             options: RendererOptions {
-                samples_per_pixel: 80,
+                samples_per_pixel: 200,
                 diffuse_depth: 20,
-                gamma: 2.2,
-                world_material: MaterialId(5),
+                gamma: 1.0,
+                world_material: MaterialId(1),
             },
         }
     }

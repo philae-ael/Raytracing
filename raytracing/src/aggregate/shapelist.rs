@@ -5,6 +5,7 @@ use crate::{
 
 use super::Aggregate;
 
+#[derive(Default)]
 pub struct ShapeList(pub Vec<Box<dyn Shape + Sync>>);
 impl Aggregate for ShapeList {}
 

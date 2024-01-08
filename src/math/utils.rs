@@ -11,11 +11,11 @@ where
     t * x + (1.0 - t) * y
 }
 
-pub fn clamp(x: f64) -> f64 {
-    if x > 1.0 {
-        1.0
-    } else if x < 0.0 {
-        0.0
+pub fn clamp<T: From<f64> + PartialOrd>(x: T) -> T {
+    if x > 1.0.into() {
+        1.0.into()
+    } else if x < 0.0.into() {
+        0.0.into()
     } else {
         x
     }

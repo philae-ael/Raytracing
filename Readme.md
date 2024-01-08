@@ -6,4 +6,4 @@ Current result:
 
 With some post-processing (bloom)
 
-![Current result](./out_plus_bloom.png)
+![Current result](./out_plus_bloom.jpg)

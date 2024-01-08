@@ -55,6 +55,18 @@ impl Vec3 {
     pub fn z(&self) -> f64 {
         self.0[2]
     }
+    pub fn near_zero(&self) -> bool {
+        self.length_squared() < 1e-4
+    }
+    pub fn reflect(&self, normal: &Vec3) -> Vec3 {
+        self - &(2.0 * self.dot(normal) * normal)
+    }
+    pub fn refract(&self, normal: &Vec3, ior: f64) -> Vec3 {
+        let cos_theta = -self.dot(normal);
+        let refracted_perp = ior * (self + &(cos_theta*normal));
+        let refracted_par = - f64::sqrt(1.0 - refracted_perp.length_squared())*normal;
+        refracted_perp + refracted_par
+    }
 }
 
 impl Index<usize> for Vec3 {
@@ -166,7 +178,6 @@ impl Neg for Vec3 {
         Vec3::ZERO - self
     }
 }
-
 
 impl From<f64> for Vec3 {
     fn from(x: f64) -> Self {

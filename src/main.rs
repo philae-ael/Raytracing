@@ -16,7 +16,7 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use crate::{
     camera::Camera,
     hit::HittableList,
-    material::{Diffuse, Emit, MaterialDescriptor, MaterialId},
+    material::{Diffuse, Emit, MaterialDescriptor, MaterialId, Metal, Dielectric},
     math::utils::*,
     renderer::Renderer,
 };
@@ -40,7 +40,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         MaterialDescriptor {
             label: Some("Uniform Gray".to_string()),
             material: Box::new(Diffuse {
-                color: color::gray(0.5),
+                color: Rgb([0.7, 0.3, 0.3]),
+            }),
+        },
+        MaterialDescriptor {
+            label: Some("Metal".to_string()),
+            material: Box::new(Metal {
+                color: Rgb([0.8, 0.6, 0.2]),
+                roughness: 1.0,
+            }),
+        },
+        MaterialDescriptor {
+            label: Some("Glass".to_string()),
+            material: Box::new(Dielectric {
+                color: Rgb([0.8,0.8,0.8]),
+                ior: 1.5,
+                invert_normal: false
             }),
         },
         MaterialDescriptor {
@@ -58,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         MaterialDescriptor {
             label: Some("Sky".to_string()),
             material: Box::new(Emit {
-                color: Rgb([0.1, 0.1, 0.4]),
+                color: Rgb([0.4, 0.5, 0.9]),
             }),
         },
     ];
@@ -71,28 +86,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             material: MaterialId(0),
         }),
         Box::new(Sphere {
-            label: Some("Ground".to_string()),
-            center: Vec3::new(0.0, -20.5, -1.),
-            radius: 20.,
+            label: Some("Metallic Sphere".to_string()),
+            center: Vec3::new(1.0, 0.0, -1.),
+            radius: 0.5,
             material: MaterialId(1),
         }),
         Box::new(Sphere {
-            label: Some("light".to_string()),
-            center: Vec3::new(1.5, 1.0, -2.5),
-            radius: 0.6,
+            label: Some("Glass".to_string()),
+            center: Vec3::new(-1.0, 0.0, -1.),
+            radius: 0.5,
             material: MaterialId(2),
+        }),
+        Box::new(Sphere {
+            label: Some("Ground".to_string()),
+            center: Vec3::new(0.0, -100.5, -1.),
+            radius: 100.,
+            material: MaterialId(3),
+        }),
+        Box::new(Sphere {
+            label: Some("light".to_string()),
+            center: Vec3::new(0.5, -0.4, -0.5),
+            radius: 0.1,
+            material: MaterialId(4),
         }),
     ]);
 
     let renderer = Renderer {
-        camera: Camera::new(width, height, 2.0, 1.0, Vec3::ZERO),
+        camera: Camera::new(width, height, 0.6*std::f64::consts::PI, 1.0, Vec3::ZERO),
         scene,
         materials,
         options: renderer::RendererOptions {
-            samples_per_pixel: 100,
+            samples_per_pixel: 2048,
             diffuse_depth: 50,
             gamma: 2.2,
-            world_material: MaterialId(3),
+            world_material: MaterialId(5),
         },
     };
 
@@ -127,9 +154,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         width,
         height,
         im.pixels()
-            .flat_map(|p| p.0.map(
-                    |x| ((u8::MAX as f64) * clamp(x as f64)) as u8)
-                )
+            .flat_map(|p| p.0.map(|x| ((u8::MAX as f64) * clamp(x as f64)) as u8))
             .collect(),
     )
     .unwrap();

@@ -59,7 +59,7 @@ impl GUIRenderer {
                     channel.send(PixelMsg {
                         x,
                         y,
-                        color: Rgba([color.0[0], color.0[1], color.0[2], 1.0]),
+                        color: Rgba([color[0], color[1], color[2], 1.0]),
                     })?;
                     progress.inc();
                     Ok(())

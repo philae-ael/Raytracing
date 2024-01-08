@@ -3,6 +3,7 @@ use std::{fmt::Display, sync::atomic};
 #[derive(Debug)]
 pub struct Progress {
     current: atomic::AtomicUsize,
+    update: atomic::AtomicBool,
     max: usize,
 }
 
@@ -10,11 +11,21 @@ impl Progress {
     pub fn new(max: usize) -> Self {
         Self {
             current: Default::default(),
+            update: true.into(),
             max,
         }
     }
     pub fn inc(&self) -> usize {
+        self.update.store(true, atomic::Ordering::SeqCst);
         self.current.fetch_add(1, atomic::Ordering::SeqCst)
+    }
+    pub fn updated(&self) -> bool {
+        let is_updated = self.update.load(atomic::Ordering::SeqCst);
+        if is_updated {
+            self.update.store(false, atomic::Ordering::SeqCst);
+        }
+
+        is_updated
     }
     pub fn get_raw(&self) -> usize {
         self.current.load(atomic::Ordering::SeqCst)

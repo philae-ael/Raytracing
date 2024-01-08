@@ -4,18 +4,19 @@ use rand::distributions::Distribution;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 
 use crate::{
+    aggregate::shapelist::ShapeList,
     camera::Camera,
     color,
-    hit::{Hit, HitRecord},
     material::{MaterialDescriptor, MaterialId},
     math::{
-        quaternion::LookAt,
         distributions::sphere_uv_from_direction,
+        quaternion::LookAt,
         vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
     },
     progress,
     ray::Ray,
-    scene::{DefaultScene, Scene}, aggregate::{shapelist::ShapeList, Aggregate},
+    scene::{DefaultScene, Scene},
+    shape::{local_info, IntersectionResult, Shape},
 };
 
 pub struct RendererOptions {
@@ -193,9 +194,9 @@ impl Renderer {
         // Prevent auto intersection
         let ray = Ray::new_with_range(ray.origin, ray.direction, 0.01..ray.bounds.1);
 
-        if let Hit::Hit(record) = self.objects.first_hit(ray) {
-            let material = &self.materials[record.material.0].material;
-            let scattered = material.scatter(ray, &record, &mut rng);
+        if let IntersectionResult::Instersection(record) = self.objects.intersection_full(ray) {
+            let material = &self.materials[record.local_info.material.0].material;
+            let scattered = material.scatter(ray, &record.local_info, &mut rng);
 
             let color = if let Some(ray_out) = scattered.ray_out {
                 self.throw_ray(ray_out, depth - 1).color
@@ -204,17 +205,16 @@ impl Renderer {
             };
             let color = color::mix(color::MixMode::Mul, color, scattered.albedo);
             RayResult {
-                normal: record.normal,
+                normal: record.local_info.normal,
                 color,
                 depth: record.t,
                 albedo: scattered.albedo,
             }
         } else {
             let material = &self.materials[self.options.world_material.0].material;
-            let record = HitRecord {
-                hit_point: ray.origin,
+            let record = local_info::Full {
+                pos: ray.origin,
                 normal: -ray.direction,
-                t: 0.0,
                 material: self.options.world_material,
                 uv: sphere_uv_from_direction(-ray.direction),
             };

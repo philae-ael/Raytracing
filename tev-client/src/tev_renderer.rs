@@ -66,6 +66,8 @@ impl TevRenderer {
         })?;
 
         let progress = progress::Progress::new((tile_count_x * tile_count_y) as usize);
+        let mut generation_result = Ok(());
+
         rayon::scope(|s| {
             let renderer: Renderer = DefaultRenderer { width, height }.into();
             let (tx, rx) = channel();
@@ -106,7 +108,7 @@ impl TevRenderer {
             v.shuffle(&mut thread_rng());
 
             // Note that this will stop whenever channel is closed (Aka. the receiver channel is closed)
-            let generation_result = v.into_iter().par_bridge().try_for_each_with(
+            generation_result = v.into_iter().par_bridge().try_for_each_with(
                 tx,
                 |tx, (tile_x, tile_y)| -> anyhow::Result<()> {
                     let x_range = (tile_x * tile_size)..((tile_x + 1) * tile_size).min(width);
@@ -138,14 +140,15 @@ impl TevRenderer {
                 },
             );
 
-            match generation_result {
-                Ok(_) => log::info!("Image fully generated"),
-                Err(err) => log::info!("Image generation interrupted: {}", err),
-            };
-
-            // To prevent progress display thread to be locked forever
+            // To prevent progress display thread to be locked forever on abrupt interruptions
             progress.set_done();
         });
+
+        match generation_result {
+            Ok(_) => log::info!("Image fully generated"),
+            Err(err) => log::info!("Image generation interrupted: {}", err),
+        };
+
         Ok(())
     }
 }

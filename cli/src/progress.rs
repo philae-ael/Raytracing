@@ -8,6 +8,12 @@ pub struct Progress {
     max: usize,
 }
 
+enum DoneState {
+    Done,
+    FirstDone,
+    NotDone,
+}
+
 impl Progress {
     pub fn new(max: usize) -> Self {
         Self {
@@ -29,9 +35,7 @@ impl Progress {
 
         is_updated
     }
-    pub fn set_done(&self) {
-        self.done.store(true, atomic::Ordering::SeqCst);
-    }
+
     pub fn get_raw(&self) -> usize {
         self.current.load(atomic::Ordering::SeqCst)
     }
@@ -40,14 +44,40 @@ impl Progress {
     }
     pub fn print(&self) {
         use std::io::Write;
-        print!("\r{}", self);
-        if self.done() {
-            println!("");
+        match self.done_state() {
+            DoneState::Done => (),
+            DoneState::FirstDone => {
+                println!("\raaaaaa{}", self);
+                let _ = std::io::stdout().flush();
+            }
+            DoneState::NotDone => {
+                print!("\r{}", self);
+                let _ = std::io::stdout().flush();
+            }
         }
-        let _ = std::io::stdout().flush();
     }
-    pub fn done(&self) -> bool {
-        self.get_raw() >= self.max || self.done.load(atomic::Ordering::SeqCst)
+
+    pub fn get_done(&self) -> bool {
+        self.done.load(atomic::Ordering::SeqCst)
+    }
+    fn set_done(&self) {
+        self.done.store(true, atomic::Ordering::SeqCst);
+    }
+    fn done_state(&self) -> DoneState {
+        let done = self.get_raw() >= self.max || self.done.load(atomic::Ordering::SeqCst);
+        let current_done = self.get_done();
+        if done {
+            self.set_done();
+        }
+        if done {
+            if current_done {
+                DoneState::Done
+            } else {
+                DoneState::FirstDone
+            }
+        } else {
+            DoneState::NotDone
+        }
     }
 }
 

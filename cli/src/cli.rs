@@ -33,8 +33,11 @@ impl Cli {
         };
 
         if outputs.contains(&AvailableOutput::Tev) {
-            this.outputs
-                .push(Box::new(TevStreaming::new(&this, args.tev_path)?));
+            this.outputs.push(Box::new(TevStreaming::new(
+                &this,
+                args.tev_path,
+                args.tev_hostname,
+            )?));
         }
 
         Ok(this)

@@ -20,7 +20,7 @@ pub struct MaterialDescriptor {
     pub material: Box<dyn Material>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct MaterialId(pub usize);
 
 pub struct Scattered {
@@ -29,7 +29,7 @@ pub struct Scattered {
 }
 
 pub trait Material: Send + Sync {
-    fn scatter(&self, ray: &Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered;
+    fn scatter(&self, ray: Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered;
 }
 
 /// This function makes sure v and n are opposed by giving back a flipped n if needed
@@ -55,7 +55,7 @@ pub struct Diffuse {
 }
 
 impl Material for Diffuse {
-    fn scatter(&self, ray: &Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
+    fn scatter(&self, ray: Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
         let bounce_noise =
             Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
         let bounce_normal = oppose(ray.direction, record.normal);
@@ -75,7 +75,7 @@ pub struct Emit {
 impl Material for Emit {
     fn scatter(
         &self,
-        _ray: &Ray,
+        _ray: Ray,
         record: &HitRecord,
         _rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered {
@@ -92,7 +92,7 @@ pub struct Metal {
 }
 
 impl Material for Metal {
-    fn scatter(&self, ray: &Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
+    fn scatter(&self, ray: Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
         let ray_direction = -ray.direction.reflect(record.normal);
         let fuziness = self.roughness
             * Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
@@ -118,7 +118,7 @@ pub struct Dielectric {
 }
 
 impl Material for Dielectric {
-    fn scatter(&self, ray: &Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
+    fn scatter(&self, ray: Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
         fn reflectance(cos: f32, ref_idx: f32) -> f32 {
             let r0 = (1. - ref_idx) / (1. + ref_idx);
             let r0 = r0 * r0;
@@ -166,7 +166,7 @@ impl Environment {
 impl Material for Environment {
     fn scatter(
         &self,
-        ray: &Ray,
+        ray: Ray,
         _record: &HitRecord,
         _rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered {
@@ -199,7 +199,7 @@ impl NonRealisticMaterial for Phong {}
 impl Material for Phong {
     fn scatter(
         &self,
-        ray: &Ray,
+        ray: Ray,
         record: &HitRecord,
         _rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered {
@@ -229,7 +229,7 @@ impl NonRealisticMaterial for Gooch {}
 impl Material for Gooch {
     fn scatter(
         &self,
-        ray: &Ray,
+        ray: Ray,
         record: &HitRecord,
         _rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered {

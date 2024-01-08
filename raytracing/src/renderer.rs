@@ -8,6 +8,7 @@ use crate::{
     integrators::Integrator,
     material::{texture::Uniform, Emit, MaterialDescriptor, MaterialId},
     math::{
+        point::Point,
         quaternion::LookAt,
         stat::RgbSeries,
         vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
@@ -24,7 +25,7 @@ pub struct RendererOptions {
 pub struct Renderer {
     pub camera: Camera,
     pub objects: ShapeList,
-    pub lights: Vec<Vec3>,
+    pub lights: Vec<Point>,
     pub options: RendererOptions,
 
     // TODO: make a pool of materials
@@ -34,7 +35,7 @@ pub struct Renderer {
 
 pub struct RayResult {
     pub normal: Vec3,
-    pub position: Vec3,
+    pub position: Point,
     pub albedo: Rgb,
     pub color: Rgb,
     pub z: f32,
@@ -43,7 +44,7 @@ pub struct RayResult {
 }
 pub struct RaySeries {
     pub normal: Vec3,
-    pub position: Vec3,
+    pub position: Point,
     pub albedo: Rgb,
     pub color: RgbSeries,
     pub z: f32,
@@ -66,7 +67,7 @@ impl RaySeries {
         let inv_samples = 1.0 / samples_accumulated as f32;
         RayResult {
             normal: inv_samples * normal,
-            position: inv_samples * position,
+            position: Point(inv_samples * position.vec()),
             albedo: (inv_samples * albedo.vec()).rgb(),
             color: color.mean(),
             z: inv_samples * z,
@@ -88,7 +89,7 @@ impl RaySeries {
 
         self.color.add_sample(color);
         self.normal += normal;
-        self.position += position;
+        self.position = Point(self.position.vec() + position.vec());
         self.albedo = (self.albedo.vec() + albedo.vec()).rgb();
         self.z += z;
         self.ray_depth += ray_depth;
@@ -100,7 +101,7 @@ impl Default for RayResult {
     fn default() -> Self {
         Self {
             normal: color::linear::BLACK.vec(),
-            position: Vec3::ZERO,
+            position: Point::ORIGIN,
             albedo: color::linear::BLACK,
             color: color::linear::BLACK,
             z: 0.0,
@@ -113,7 +114,7 @@ impl Default for RaySeries {
     fn default() -> Self {
         Self {
             normal: color::linear::BLACK.vec(),
-            position: Vec3::ZERO,
+            position: Point::ORIGIN,
             albedo: color::linear::BLACK,
             color: RgbSeries::default(),
             z: 0.0,
@@ -232,7 +233,7 @@ impl Renderer {
 
         GenericRenderResult {
             normal: ray_results.normal.rgb(),
-            position: ray_results.position.rgb(),
+            position: ray_results.position.vec().rgb(),
             color: ray_results.color,
             albedo: ray_results.albedo,
             z: Luma(ray_results.z),
@@ -252,8 +253,8 @@ pub struct DefaultRenderer {
 
 impl Into<Renderer> for DefaultRenderer {
     fn into(self) -> Renderer {
-        let look_at = Vec3::NEG_Z;
-        let look_from = Vec3::ZERO;
+        let look_at = Point::new(0.0, 0.0, -1.0);
+        let look_from = Point::ORIGIN;
         let look_direction = look_at - look_from;
         let camera = Camera::new(
             self.width,

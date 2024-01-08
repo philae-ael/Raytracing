@@ -1,12 +1,10 @@
 use std::path::PathBuf;
 
-use glam::Vec3;
-
 use crate::{
     aggregate::shapelist::ShapeList,
     color::Rgb,
     material::{texture, Diffuse, Emit, Material, MaterialDescriptor, MaterialId, MixMaterial},
-    math::transform::Transform,
+    math::{point::Point, transform::{Transform, Transformer}},
     scene::Scene,
     shape::{Shape, TriangleBuilder},
 };
@@ -106,17 +104,17 @@ impl ObjLoaderExt for Scene {
                 indices_slice = &indices_slice[3..];
 
                 let vertices = [
-                    Vec3::new(
+                    Point::new(
                         mesh.positions[(0 + indices[0] * 3) as usize],
                         mesh.positions[(1 + indices[0] * 3) as usize],
                         mesh.positions[(2 + indices[0] * 3) as usize],
                     ),
-                    Vec3::new(
+                    Point::new(
                         mesh.positions[(0 + indices[1] * 3) as usize],
                         mesh.positions[(1 + indices[1] * 3) as usize],
                         mesh.positions[(2 + indices[1] * 3) as usize],
                     ),
-                    Vec3::new(
+                    Point::new(
                         mesh.positions[(0 + indices[2] * 3) as usize],
                         mesh.positions[(1 + indices[2] * 3) as usize],
                         mesh.positions[(2 + indices[2] * 3) as usize],
@@ -139,7 +137,7 @@ impl ObjLoaderExt for Scene {
                     Box::new(
                         TriangleBuilder {
                             vertices,
-                            ..Default::default()
+                            winding: Default::default(),
                         }
                         .build(material),
                     ), // TODO: use material which is inside OBJ file

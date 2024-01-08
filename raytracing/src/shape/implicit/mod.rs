@@ -11,12 +11,12 @@ use super::{
     local_info, shape::RayIntersection, FullIntersectionResult, IntersectionResult,
     MinIntersectionResult, Shape,
 };
-use crate::{material::MaterialId, ray::Ray};
+use crate::{material::MaterialId, math::point::Point, ray::Ray};
 use glam::Vec3;
 
 /// Defines a surface by an implicit parametrisation, given by impl_f
 pub trait ImplicitSurface {
-    fn impl_f(&self, p: Vec3) -> f32;
+    fn impl_f(&self, p: Point) -> f32;
 }
 
 /// Contains all the information needed to make an implicit surface a shape

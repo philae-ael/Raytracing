@@ -1,10 +1,11 @@
 use glam::{Quat, Vec3};
 
 use crate::{
+    color::Rgb,
     loader::ObjLoaderExt,
     material::{Gooch, MaterialDescriptor},
-    math::transform::Transform,
-    scene::Scene, color::Rgb,
+    math::{point::Point, transform::Transform},
+    scene::Scene,
 };
 
 pub struct CornellBoxScene;
@@ -33,7 +34,7 @@ impl From<CornellBoxScene> for Scene {
             default_material,
         );
 
-        scene.insert_light(Vec3::new(0.0, 0.4, -0.4));
+        scene.insert_light(Point::new(0.0, 0.4, -0.4));
 
         scene
     }

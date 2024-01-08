@@ -1,10 +1,9 @@
 pub mod examples;
 
-use glam::Vec3;
-
 use crate::{
     aggregate::shapelist::ShapeList,
     material::{MaterialDescriptor, MaterialId},
+    math::point::Point,
     shape::Shape,
 };
 
@@ -12,7 +11,7 @@ use crate::{
 pub struct Scene {
     pub objects: ShapeList,
     pub materials: Vec<MaterialDescriptor>,
-    pub lights: Vec<Vec3>,
+    pub lights: Vec<Point>,
 }
 
 impl Scene {
@@ -22,7 +21,7 @@ impl Scene {
     }
 
     /// Insert a light in the scene
-    pub fn insert_light(&mut self, light_pos: Vec3) {
+    pub fn insert_light(&mut self, light_pos: Point) {
         self.lights.push(light_pos);
     }
 

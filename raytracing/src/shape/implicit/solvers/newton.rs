@@ -1,6 +1,10 @@
 use glam::Vec3;
 
-use crate::{math::float::FloatAsExt, ray::Ray, shape::implicit::ImplicitSolver};
+use crate::{
+    math::{float::FloatAsExt, point::Point},
+    ray::Ray,
+    shape::implicit::ImplicitSolver,
+};
 
 use super::ImplicitSolution;
 
@@ -14,7 +18,7 @@ pub struct NewtonSolver {
 }
 
 impl ImplicitSolver for NewtonSolver {
-    fn solve<F: Fn(Vec3) -> f32>(&self, f: F, ray: Ray) -> Option<ImplicitSolution> {
+    fn solve<F: Fn(Point) -> f32>(&self, f: F, ray: Ray) -> Option<ImplicitSolution> {
         let mut t = ray.bounds.0;
         let mut steps = 0;
         let f_along_ray = |t| f(ray.at(t));

@@ -1,7 +1,7 @@
 //! The solvers used to solve intersection on implicit surfaces are here.
 mod newton;
 
-use crate::ray::Ray;
+use crate::{ray::Ray, math::point::Point};
 use glam::Vec3;
 
 /// data about the intersection of a ray an an implicit surface
@@ -9,7 +9,7 @@ pub struct ImplicitSolution {
     /// Time of intersection
     pub t: f32,
     /// Position of intersection
-    pub hit_point: Vec3,
+    pub hit_point: Point,
     /// normal of implicit surface at intersection
     ///
     /// This will be wrong or explode if the implicit function is not smooth
@@ -24,7 +24,7 @@ pub trait ImplicitSolver {
     /// This solve the problem
     ///
     /// Return None if anything goes wrong
-    fn solve<F: Fn(Vec3) -> f32>(&self, f: F, ray: Ray) -> Option<ImplicitSolution>;
+    fn solve<F: Fn(Point) -> f32>(&self, f: F, ray: Ray) -> Option<ImplicitSolution>;
 }
 
 pub use newton::NewtonSolver;

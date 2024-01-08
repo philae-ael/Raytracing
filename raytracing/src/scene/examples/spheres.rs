@@ -3,7 +3,7 @@ use glam::Vec3;
 use crate::{
     color::Rgb,
     material::{dielectric::Dielectric, texture, Diffuse, Emit, MaterialDescriptor, MixMaterial},
-    math::vec::Vec3AsRgbExt,
+    math::{vec::Vec3AsRgbExt, point::Point},
     scene::Scene,
     shape::Sphere,
 };
@@ -45,24 +45,24 @@ impl From<SpheresScene> for Scene {
         });
 
         scene.insert_object(Sphere {
-            center: Vec3::new(0.0, 0.2, -1.5),
+            center: Point::new(0.0, 0.2, -1.5),
             radius: 0.3,
             material: diffuse,
         });
         scene.insert_object(Sphere {
-            center: Vec3::new(0.0, -0.1, -0.3),
+            center: Point::new(0.0, -0.1, -0.3),
             radius: 0.1,
             material: glass,
         });
         scene.insert_object(Sphere {
-            center: Vec3::new(0.0, -1000.2, 0.0),
+            center: Point::new(0.0, -1000.2, 0.0),
             radius: 1000.0,
             material: diffuse2,
         });
 
-        scene.insert_light(Vec3::new(0.0, 0.2, -0.1));
+        scene.insert_light(Point::new(0.0, 0.2, -0.1));
         scene.insert_object(Sphere {
-            center: Vec3::new(3.3, 3.3, 1.2),
+            center: Point::new(3.3, 3.3, 1.2),
             radius: 3.0,
             material: light,
         });

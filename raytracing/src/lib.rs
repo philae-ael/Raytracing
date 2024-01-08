@@ -3,7 +3,6 @@ pub mod camera;
 pub mod color;
 pub mod material;
 pub mod math;
-pub mod progress;
 pub mod ray;
 pub mod renderer;
 pub mod scene;

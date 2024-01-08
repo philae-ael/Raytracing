@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use rand::{distributions::Alphanumeric, Rng};
 use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
@@ -18,15 +18,37 @@ pub struct TevStreaming {
 }
 
 impl TevStreaming {
-    pub fn new(cli: &Cli, tev_path: Option<PathBuf>) -> Result<Self> {
-        let mut client = if let Some(tev_path) = tev_path {
-            let command = std::process::Command::new(tev_path);
-            TevClient::spawn(command)
-        } else {
-            Ok(TevClient::wrap(std::net::TcpStream::connect(
-                "127.0.0.1:14158",
-            )?))
-        }?;
+    pub fn new(cli: &Cli, tev_path: Option<String>, tev_hostname: Option<String>) -> Result<Self> {
+        let tev_hostname: String = tev_hostname.unwrap_or("127.0.0.1:14158".into());
+        let tev_path: String = tev_path.unwrap_or("./tev".into());
+
+        let try_spawn = |path: PathBuf| -> Result<()> {
+            let mut command = std::process::Command::new(path);
+            command.arg(format!("--hostname={:?}", tev_hostname));
+            command
+                .stdout(std::process::Stdio::null())
+                .stdin(std::process::Stdio::null())
+                .spawn()?;
+
+            // Wait for exe to be up
+            // May not work
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            Ok(())
+        };
+        let try_connect = || -> Result<TevClient> {
+            Ok(TevClient::wrap(std::net::TcpStream::connect(&tev_hostname)?))
+        };
+
+        log::debug!("Trying tev direct connection");
+        let mut client = match try_connect() {
+            Ok(client) => client,
+            Err(_) => {
+                log::warn!("Can't find tev client, trying to spawn tev");
+                try_spawn(tev_path.into())?;
+                try_connect()?
+            }
+        };
+        log::info!("Successfully connected to tev");
 
         fn get_id() -> String {
             rand::thread_rng()

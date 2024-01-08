@@ -1,11 +1,11 @@
 use std::sync::mpsc::{channel, Receiver};
 
+use super::progress;
 use bytemuck::Zeroable;
 use image::{ImageBuffer, Luma, Rgb, Rgb32FImage};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
-use raytracing::progress;
 use raytracing::renderer::{DefaultRenderer, RenderResult, Renderer};
 
 use itertools::Itertools;
@@ -18,7 +18,7 @@ pub struct TileMsg {
 }
 
 impl TileMsg {
-    fn ss(&self, tile_size: u32, height:u32, width: u32) -> (u32, u32, u32, u32) {
+    fn ss(&self, tile_size: u32, height: u32, width: u32) -> (u32, u32, u32, u32) {
         let x = self.tile_x * tile_size;
         let y = self.tile_y * tile_size;
         let tile_width = (x + tile_size).min(width) - x;
@@ -89,6 +89,11 @@ impl TileRenderer {
         let progress = progress::Progress::new((tile_count_x * tile_count_y) as usize);
         let mut generation_result = Ok(());
 
+        enum Message {
+            Tile(TileMsg),
+            Stop,
+        }
+
         rayon::scope(|s| {
             let renderer: Renderer = DefaultRenderer {
                 width,
@@ -102,12 +107,20 @@ impl TileRenderer {
             log::info!("Generating image...");
             s.spawn(|_| {
                 let mut on_tile_rendered = on_tile_rendered;
-                let rx: Receiver<TileMsg> = rx; // Force move without moving anything else
+                let rx: Receiver<Message> = rx; // Force move without moving anything else
                 for msg in rx.iter() {
-                    push_tile_on_output_buffers(&msg);
-                    on_tile_rendered(&msg);
-                    progress.print();
+                    match msg {
+                        Message::Tile(tile_msg) => {
+                            push_tile_on_output_buffers(&tile_msg);
+                            on_tile_rendered(&tile_msg);
+                            progress.print();
+                        }
+                        Message::Stop => {
+                            break;
+                        }
+                    }
                 }
+                progress.print();
             });
 
             let mut v = (0..tile_count_x)
@@ -117,7 +130,7 @@ impl TileRenderer {
 
             // Note that this will stop whenever channel is closed (Aka. the receiver channel is closed)
             generation_result = v.into_iter().par_bridge().try_for_each_with(
-                tx,
+                tx.clone(),
                 |tx, (tile_x, tile_y)| -> anyhow::Result<()> {
                     let x_range = (tile_x * tile_size)..((tile_x + 1) * tile_size).min(width);
                     let y_range = (tile_y * tile_size)..((tile_y + 1) * tile_size).min(height);
@@ -138,18 +151,17 @@ impl TileRenderer {
                     }
 
                     log::debug!("Tile {tile_x} {tile_y} done !");
-                    tx.send(TileMsg {
+                    tx.send(Message::Tile(TileMsg {
                         tile_x,
                         tile_y,
                         data,
-                    })?;
+                    }))?;
                     progress.inc();
                     Ok(())
                 },
             );
 
-            // To prevent progress display thread to be locked forever on abrupt interruptions
-            progress.set_done();
+            tx.send(Message::Stop).unwrap();
         });
 
         match generation_result {

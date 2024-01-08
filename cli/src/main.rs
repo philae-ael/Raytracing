@@ -1,8 +1,9 @@
 mod cli;
-mod tile_renderer;
 mod output;
+mod tile_renderer;
+pub mod progress;
 
-use std::{fmt::Display, path::PathBuf};
+use std::fmt::Display;
 
 use clap::{Parser, ValueEnum};
 use cli::Cli;
@@ -62,7 +63,7 @@ impl Display for Dimensions {
 
 #[derive(Parser, Debug)]
 pub struct Args {
-    tev_path: Option<PathBuf>,
+    tev_path: Option<String>,
     #[arg(long = "spp", default_value_t = 1)]
     /// Samples per pixels
     sample_per_pixel: u32,
@@ -77,6 +78,9 @@ pub struct Args {
 
     #[arg(short, long, value_enum)]
     output: Vec<AvailableOutput>,
+
+    #[arg(long)]
+    tev_hostname: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {

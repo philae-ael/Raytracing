@@ -6,7 +6,10 @@ use rand::{distributions::Uniform, prelude::Distribution};
 
 use crate::{
     hit::HitRecord,
-    math::{vec::{RgbAsVec3Ext, Vec3, RefrReflVecExt, Vec3AsRgbExt}, utils::{UnitBall3PolarMethod, UnitBall3}},
+    math::{
+        utils::{UnitBall3, UnitBall3PolarMethod},
+        vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
+    },
     ray::Ray,
 };
 
@@ -53,7 +56,8 @@ pub struct Diffuse {
 
 impl Material for Diffuse {
     fn scatter(&self, ray: &Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
-        let bounce_noise = Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
+        let bounce_noise =
+            Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
         let bounce_normal = oppose(ray.direction, record.normal);
         let bounce_direction = non_zero_or(bounce_normal + bounce_noise, bounce_normal);
 
@@ -90,8 +94,8 @@ pub struct Metal {
 impl Material for Metal {
     fn scatter(&self, ray: &Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
         let ray_direction = -ray.direction.reflect(record.normal);
-        let fuziness =
-            self.roughness * Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
+        let fuziness = self.roughness
+            * Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
         let ray_direction = non_zero_or(ray_direction + fuziness, ray_direction);
 
         let ray_out = if ray_direction.dot(record.normal) > 0.0 {

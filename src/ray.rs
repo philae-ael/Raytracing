@@ -6,7 +6,7 @@ use super::math::vec::Vec3;
 pub struct Ray {
     pub origin: Vec3,
     pub direction: Vec3,
-    _marker: PhantomData<()> // Can't construct Ray without new
+    _marker: PhantomData<()>, // Can't construct Ray without new
 }
 
 impl Ray {
@@ -14,7 +14,7 @@ impl Ray {
         Self {
             origin,
             direction: direction.normalize(),
-            _marker: Default::default()
+            _marker: Default::default(),
         }
     }
     pub fn at(&self, t: f32) -> Vec3 {

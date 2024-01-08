@@ -1,11 +1,11 @@
 use image::Rgb;
 
 pub type Uv = [f32; 2];
-pub trait Texture : Sync + Send{
+pub trait Texture: Sync + Send {
     fn color(&self, uv: Uv) -> Rgb<f32>;
 }
 
-pub struct Uniform (pub Rgb<f32>);
+pub struct Uniform(pub Rgb<f32>);
 
 impl Texture for Uniform {
     fn color(&self, _: Uv) -> Rgb<f32> {
@@ -14,8 +14,8 @@ impl Texture for Uniform {
 }
 
 pub struct Checker {
-    pub odd: Box<dyn Texture>, 
-    pub even: Box<dyn Texture>, 
+    pub odd: Box<dyn Texture>,
+    pub even: Box<dyn Texture>,
 }
 
 impl Texture for Checker {
@@ -24,15 +24,12 @@ impl Texture for Checker {
         let fv = 10.;
         let wu = std::f32::consts::TAU * fu;
         let wv = std::f32::consts::TAU * fv;
-        let even = f32::cos(wu*uv[0]) * f32::cos(wv*uv[1]) > 0.0; 
-        let uv  = [uv[0]/fu, uv[1]/fv];
+        let even = f32::cos(wu * uv[0]) * f32::cos(wv * uv[1]) > 0.0;
+        let uv = [uv[0] / fu, uv[1] / fv];
         if even {
             self.even.color(uv)
-        }else {
+        } else {
             self.odd.color(uv)
         }
-        
     }
 }
-
-

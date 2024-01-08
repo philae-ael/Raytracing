@@ -13,7 +13,7 @@ use vulkano::{
     instance::{
         debug::{
             DebugUtilsLabel, DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger,
-            DebugUtilsMessengerCreateInfo,
+            DebugUtilsMessengerCreateInfo, ValidationFeatureEnable,
         },
         Instance, InstanceCreateInfo,
     },
@@ -83,6 +83,8 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
         let mut required_extensions = vulkano_win::required_extensions(&*library);
         required_extensions.ext_debug_utils = true;
 
+        required_extensions.ext_validation_features = true;
+
         let instance = Instance::new(
             library,
             InstanceCreateInfo {
@@ -90,6 +92,10 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
                 // enable enumerating devices that use non-conformant vulkan implementations. (ex. moltenvk)
                 enumerate_portability: true,
                 enabled_layers: vec!["VK_LAYER_KHRONOS_validation".to_owned()],
+                enabled_validation_features: vec![
+                    ValidationFeatureEnable::BestPractices,
+                    ValidationFeatureEnable::GpuAssisted,
+                ],
                 ..Default::default()
             },
         )?;
@@ -161,7 +167,6 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
                 .physical_device()
                 .surface_capabilities(&surface, Default::default())?;
 
-            // TODO: What are the available color formats ?
             let image_format = Some(
                 device
                     .physical_device()

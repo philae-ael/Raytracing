@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use glam::Vec3;
 
-use crate::ray::Ray;
+use crate::{ray::Ray, utils::log_once};
 
 use super::point::Point;
 
@@ -71,29 +71,17 @@ impl Bounds {
         let ts_start = origin / ray.direction;
         let ts_end = end / ray.direction;
 
-        let nan_to_neg_infinity: fn(Vec3) -> Vec3 = |v| {
-            Vec3::from_array(
-                v.to_array()
-                    .map(|x| if x.is_nan() { f32::INFINITY } else { x }),
-            )
-        };
-        let nan_to_infinity: fn(Vec3) -> Vec3 = |v| {
-            Vec3::from_array(
-                v.to_array()
-                    .map(|x| if x.is_nan() { f32::INFINITY } else { x }),
-            )
-        };
-
-        let t_min =
-            Vec3::min(nan_to_neg_infinity(ts_start), nan_to_neg_infinity(ts_end)).max_element();
-        let t_max = Vec3::max(nan_to_infinity(ts_start), nan_to_infinity(ts_end)).min_element();
+        let t_min = Vec3::min(ts_start, ts_end).max_element();
+        let t_max = Vec3::max(ts_start, ts_end).min_element();
 
         let (ray_min, ray_max) = ray.bounds;
         let t_min = f32::max(t_min, ray_min);
         let t_max = f32::min(t_max, ray_max);
 
-        assert!(!t_min.is_nan());
-        assert!(!t_max.is_nan());
+        if t_min.is_nan() || t_max.is_nan() {
+            log_once::warn_once!("NAN");
+            return None;
+        }
 
         if t_min > t_max {
             None

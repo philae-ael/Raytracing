@@ -2,17 +2,17 @@ use glam::Vec3;
 
 use crate::{
     color::Rgb,
-    material::{texture, Dielectric, Diffuse, Emit, MixMaterial},
+    material::{texture, Dielectric, Diffuse, Emit},
     math::{point::Point, vec::Vec3AsRgbExt},
     scene::Scene,
-    shape::Sphere,
+    shape::{Plane, Sphere},
 };
 
 pub struct SpheresScene;
 impl From<SpheresScene> for Scene {
     fn from(_: SpheresScene) -> Self {
         let mut scene = Scene::new(Emit {
-            texture: Box::new(texture::Uniform(Rgb::from_array([0.3, 0.3, 0.3]))),
+            texture: Box::new(texture::Uniform(Rgb::from_array([0.01, 0.01, 0.01]))),
         });
 
         let diffuse = scene.insert_material(
@@ -21,7 +21,13 @@ impl From<SpheresScene> for Scene {
                 texture: Box::new(texture::Uniform(Rgb::from_array([0.2, 0.9, 0.7]))),
             },
         );
-        let diffuse2 = scene.insert_material(
+        let diffuse_blue = scene.insert_material(
+            None,
+            Diffuse {
+                texture: Box::new(texture::Uniform(Rgb::from_array([0.2, 0.4, 0.8]))),
+            },
+        );
+        let diffuse_ground = scene.insert_material(
             None,
             Diffuse {
                 texture: Box::new(texture::Uniform(Rgb::from_array([0.2, 0.3, 0.7]))),
@@ -36,37 +42,46 @@ impl From<SpheresScene> for Scene {
         );
         let light = scene.insert_material(
             None,
-            MixMaterial {
-                p: 0.2,
-                mat1: Emit {
-                    texture: Box::new(texture::Uniform(Vec3::splat(15.0).rgb())),
-                },
-                mat2: Diffuse {
-                    texture: Box::new(texture::Uniform(Rgb::from_array([0.4, 0.5, 0.3]))),
-                },
+            Emit {
+                texture: Box::new(texture::Uniform(Vec3::splat(15.0).rgb())),
             },
         );
 
         scene.insert_object(Sphere {
-            center: Point::new(0.0, 0.2, -1.5),
+            center: Point::new(-0.6, 0.05, -1.0),
             radius: 0.3,
             material: diffuse,
         });
         scene.insert_object(Sphere {
-            center: Point::new(0.0, -0.1, -0.3),
-            radius: 0.1,
+            center: Point::new(-0.3, -0.05, 1.0),
+            radius: 0.2,
+            material: diffuse_blue,
+        });
+        scene.insert_object(Sphere {
+            center: Point::new(0.0, 0.0, -0.3),
+            radius: 0.15,
             material: glass,
         });
-        scene.insert_object(Sphere {
-            center: Point::new(0.0, -1000.2, 0.0),
-            radius: 1000.0,
-            material: diffuse2,
+        // scene.insert_object(Plane {
+            // origin: Point::new(0.0, 0.5, 0.0),
+            // normal: -Vec3::Y,
+            // material: diffuse_ground,
+        // });
+        scene.insert_object(Plane {
+            origin: Point::new(0.0, -0.15, 0.0),
+            normal: Vec3::Y,
+            material: diffuse_ground,
         });
 
-        scene.insert_light(Point::new(0.0, 0.2, -0.1));
+        scene.insert_light(Point::new(0.0, 0., -0.5));
         scene.insert_object(Sphere {
-            center: Point::new(3.3, 3.3, 1.2),
-            radius: 3.0,
+            center: Point::new(0.4, -0., -0.6),
+            radius: 0.12,
+            material: light,
+        });
+        scene.insert_object(Sphere {
+            center: Point::new(-0.1, -0.1, 0.6),
+            radius: 0.12,
             material: light,
         });
         scene

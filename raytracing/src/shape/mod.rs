@@ -21,10 +21,12 @@
 pub mod shape;
 pub mod sphere;
 pub mod triangle;
+pub mod plane;
 
 pub use shape::{
     local_info, FullIntersectionResult, IntersectionResult, MinIntersectionResult, Shape,
 };
 
 pub use sphere::Sphere;
+pub use plane::Plane;
 pub use triangle::{Triangle, TriangleBuilder};

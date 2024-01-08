@@ -16,4 +16,5 @@ log = "0.4.17"
 rand = "0.8.5"
 rayon = "1.5.3"
 raytracing = { path = "../raytracing" }
+sdl2 = { version = "0.35.2", features = ["bundled"] }
 tev_client = "0.5.2"

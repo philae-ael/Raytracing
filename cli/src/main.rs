@@ -1,19 +1,37 @@
 mod cli;
 mod output;
-pub mod progress;
-mod tile_renderer;
+mod progress;
+mod renderer;
 
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
 use clap::{Parser, ValueEnum};
 use cli::Cli;
 use raytracing::{
     integrators::{BasicIntegrator, Integrator, WhittedIntegrator},
     scene::{
-        examples::{CornellBoxScene, DebugScene, SpheresScene, StandfordBunnyScene, DragonScene},
+        examples::{CornellBoxScene, DebugScene, DragonScene, SpheresScene, StandfordBunnyScene},
         Scene,
     },
 };
+
+#[derive(Debug, Clone, Copy)]
+pub enum Spp {
+    Spp(u32),
+    Inf,
+}
+
+impl FromStr for Spp {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("inf") {
+            Ok(Spp::Inf)
+        } else {
+            Ok(Spp::Spp(s.parse()?))
+        }
+    }
+}
 
 #[derive(Debug, Default, Clone, Copy, ValueEnum)]
 pub enum AvailableScene {
@@ -22,7 +40,7 @@ pub enum AvailableScene {
     CornellBox,
     Spheres,
     Debug,
-    Dragon
+    Dragon,
 }
 
 impl Into<Scene> for AvailableScene {
@@ -32,7 +50,7 @@ impl Into<Scene> for AvailableScene {
             AvailableScene::CornellBox => CornellBoxScene.into(),
             AvailableScene::Spheres => SpheresScene.into(),
             AvailableScene::Debug => DebugScene.into(),
-            AvailableScene::Dragon=> DragonScene.into(),
+            AvailableScene::Dragon => DragonScene.into(),
         }
     }
 }
@@ -41,7 +59,7 @@ impl Into<Scene> for AvailableScene {
 pub enum AvailableOutput {
     #[default]
     Tev,
-    Vulkan,
+    SDL2,
     File,
 }
 
@@ -61,7 +79,7 @@ impl Into<Box<dyn Integrator>> for AvailableIntegrator {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Dimensions {
     width: u32,
     height: u32,
@@ -89,9 +107,9 @@ impl Display for Dimensions {
 #[derive(Parser, Debug)]
 pub struct Args {
     tev_path: Option<String>,
-    #[arg(long = "spp", default_value_t = 1)]
+    #[arg(long = "spp", default_value = "1")]
     /// Samples per pixels
-    sample_per_pixel: u32,
+    sample_per_pixel: Spp,
 
     #[arg(long, value_enum, default_value_t)]
     /// Scene selector

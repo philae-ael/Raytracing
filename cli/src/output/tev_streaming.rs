@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use rand::{distributions::Alphanumeric, Rng};
 use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
-use crate::{cli::StreamingOutput, tile_renderer::TileMsg, Dimensions};
+use crate::{cli::StreamingOutput, renderer::TileMsg, Dimensions};
 
 trait ChannelTevExt {}
 const CHANNEL_COUNT: usize = 14;

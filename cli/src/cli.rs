@@ -4,8 +4,8 @@ use anyhow::Result;
 use raytracing::utils::{counter, timer::timed_scope_log};
 
 use crate::{
-    output::{FileOutput, TevStreaming},
-    tile_renderer::{OutputBuffers, TileMsg, TileRenderer, TileRendererCreateInfo},
+    output::{FileOutput, SDL2Streaming, TevStreaming},
+    renderer::{OutputBuffers, TileMsg, Renderer, RendererCreateInfo},
     Args, AvailableOutput,
 };
 
@@ -19,7 +19,7 @@ pub trait FinalOutput: Send {
 pub struct Cli {
     pub streaming_outputs: Vec<Box<dyn StreamingOutput>>,
     pub final_outputs: Vec<Box<dyn FinalOutput>>,
-    pub tile_renderer: TileRenderer,
+    pub renderer: Renderer,
 }
 impl Cli {
     pub fn new(args: Args) -> Result<Self> {
@@ -38,7 +38,7 @@ impl Cli {
         let mut this = Self {
             streaming_outputs: Vec::new(),
             final_outputs: Vec::new(),
-            tile_renderer: TileRenderer::new(TileRendererCreateInfo {
+            renderer: Renderer::new(RendererCreateInfo {
                 dimension: args.dimensions.clone(),
                 spp: args.sample_per_pixel,
                 tile_size,
@@ -58,6 +58,11 @@ impl Cli {
             )?));
         }
 
+        if outputs.contains(&AvailableOutput::SDL2) {
+            this.streaming_outputs
+                .push(Box::new(SDL2Streaming::new(args.dimensions, tile_size)));
+        }
+
         if outputs.contains(&AvailableOutput::File) {
             this.final_outputs.push(Box::new(FileOutput::new()));
         }
@@ -67,7 +72,7 @@ impl Cli {
 
     pub fn run(mut self) -> Result<()> {
         let output_buffers = timed_scope_log("Run tile renderer", || {
-            self.tile_renderer.run(|msg| {
+            self.renderer.run(|msg| {
                 let mut outputs = Vec::new();
                 // Move tev_cli out of self, work with it and move it back in self
                 std::mem::swap(&mut self.streaming_outputs, &mut outputs);
@@ -76,7 +81,7 @@ impl Cli {
                     match output.send_msg(msg.clone()) {
                         Ok(_) => self.streaming_outputs.push(output),
                         Err(err) => {
-                            log::error!("{err}");
+                            log::error!("Streaming output errored, it will not be used anymore: {err}");
                         }
                     }
                 }

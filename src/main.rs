@@ -8,16 +8,14 @@ pub mod ray;
 pub mod renderer;
 
 use hit::Sphere;
-use image::{buffer::ConvertBuffer, ImageBuffer, Luma, Rgb, Rgb32FImage};
+use image::{buffer::ConvertBuffer, ImageBuffer, Rgb};
 use math::vec::Vec3;
-
-use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::{
     camera::Camera,
     hit::HittableList,
     material::{Dielectric, Diffuse, Emit, MaterialDescriptor, MaterialId, Metal},
-    math::{quaternion::Quaternion, utils::*},
+    math::quaternion::Quaternion,
     renderer::{OutputBuffers, Renderer},
 };
 
@@ -31,25 +29,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let materials: Vec<MaterialDescriptor> = vec![
         MaterialDescriptor {
-            label: Some("Uniform Gray".to_string()),
+            label: Some("Bubble like".to_string()),
             material: Box::new(Dielectric {
                 albedo: Rgb([0.7, 0.3, 0.3]),
-                ior: 1.3,
+                ior: 0.8,
                 invert_normal: false,
             }),
         },
         MaterialDescriptor {
-            label: Some("Metal".to_string()),
-            material: Box::new(Metal {
-                color: Rgb([0.8, 0.6, 0.2]),
-                roughness: 1.0,
+            label: Some("Diffuse orange".to_string()),
+            material: Box::new(Diffuse{
+                albedo: Rgb([0.8, 0.6, 0.2]),
             }),
         },
         MaterialDescriptor {
-            label: Some("Glass".to_string()),
+            label: Some("Gray metal".to_string()),
             material: Box::new(Metal {
-                color: Rgb([0.8, 0.8, 0.8]),
-                roughness: 0.0,
+                albedo: Rgb([0.8, 0.8, 0.8]),
+                roughness: 0.6,
             }),
         },
         MaterialDescriptor {
@@ -67,26 +64,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         MaterialDescriptor {
             label: Some("Sky".to_string()),
             material: Box::new(Emit {
-                color: Rgb([0.4, 0.5, 0.9]),
+                color: Rgb([0.3, 0.3, 0.4]),
             }),
         },
     ];
 
     let scene = HittableList(vec![
         Box::new(Sphere {
-            label: Some("Sphere".to_string()),
+            label: Some("Bubble Sphere".to_string()),
             center: Vec3::new(0.0, 0.0, -1.),
             radius: 0.5,
             material: MaterialId(0),
         }),
         Box::new(Sphere {
-            label: Some("Metallic Sphere".to_string()),
+            label: Some("Diffuse Sphere".to_string()),
             center: Vec3::new(1.0, 0.0, -1.),
             radius: 0.5,
             material: MaterialId(1),
         }),
         Box::new(Sphere {
-            label: Some("Glass".to_string()),
+            label: Some("Metal Sphere".to_string()),
             center: Vec3::new(-1.0, 0.0, -1.),
             radius: 0.5,
             material: MaterialId(2),
@@ -98,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             material: MaterialId(3),
         }),
         Box::new(Sphere {
-            label: Some("light".to_string()),
+            label: Some("Light".to_string()),
             center: Vec3::new(0.5, -0.4, -0.5),
             radius: 0.1,
             material: MaterialId(4),
@@ -122,7 +119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         scene,
         materials,
         options: renderer::RendererOptions {
-            samples_per_pixel: 8,
+            samples_per_pixel: 500,
             diffuse_depth: 20,
             gamma: 2.2,
             world_material: MaterialId(5),

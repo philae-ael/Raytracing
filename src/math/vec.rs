@@ -63,11 +63,24 @@ impl Vec3 {
     pub fn reflect(&self, normal: &Vec3) -> Vec3 {
         (2.0 * self.dot(normal) * normal) - *self
     }
-    pub fn refract(&self, normal: &Vec3, ior: f64) -> Vec3 {
-        let cos_theta = -self.dot(normal);
-        let refracted_perp = ior * (self + &(cos_theta * normal));
-        let refracted_par = -f64::sqrt(1.0 - refracted_perp.length_squared()) * normal;
-        refracted_perp + refracted_par
+    pub fn refract(&self, normal: &Vec3, ior: f64) -> Option<Vec3> {
+        let mut cosi = self.dot(normal);
+        let mut etai = 1.;
+        let mut etat = ior;
+        let mut n = *normal;
+        if cosi < 0.0 {
+            cosi = -cosi;
+        } else {
+            (etat, etai) = (etai, etat);
+            n = -n;
+        }
+        let eta = etai / etat;
+        let k = 1. - eta * eta * (1. - cosi * cosi);
+        if k < 0. {
+            None
+        } else {
+            Some(eta * self + (eta * cosi - f64::sqrt(k)) * n)
+        }
     }
 }
 

@@ -87,7 +87,7 @@ impl Material for Emit {
 
 pub struct Metal {
     pub roughness: f64,
-    pub color: Rgb<f64>,
+    pub albedo: Rgb<f64>,
 }
 
 impl Material for Metal {
@@ -105,7 +105,7 @@ impl Material for Metal {
 
         Scattered {
             ray_out,
-            albedo: self.color,
+            albedo: self.albedo,
         }
     }
 }
@@ -118,36 +118,33 @@ pub struct Dielectric {
 
 impl Material for Dielectric {
     fn scatter(&self, ray: &Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
-        let uniform = Uniform::new(0.0, 1.0);
-        fn reflectance(cos_theta: f64, ior: f64) -> f64 {
-            let r0 = (1. - ior) / (1. + ior);
+        fn reflectance(cos: f64, ref_idx: f64) -> f64 {
+            let r0 = (1. - ref_idx) / (1. + ref_idx);
             let r0 = r0 * r0;
-            r0 * (1. - r0) * (1. - cos_theta).powi(5)
+            r0 + (1. - r0) * f64::powi(1. - cos, 5)
         }
-
+        
+        let uniform = Uniform::new(0.0, 1.0);
         let normal = if self.invert_normal {
-            -&record.normal
+            -record.normal
         } else {
             record.normal
         };
-        let ior = if ray.direction.dot(&record.normal) < 0.0 {
-            1.0 / self.ior
-        } else {
-            self.ior
-        };
 
-        let cos_theta = -ray.direction.dot(&normal);
-        let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
+        let cos = ray.direction.dot(&normal);
 
-        let cannot_refract =
-            ior * sin_theta > 0.0 || reflectance(cos_theta, ior) > uniform.sample(rng);
-        let ray_out = if cannot_refract {
-            Ray::new(record.hit_point, ray.direction.reflect(&normal))
-        } else {
-            let refracted = ray.direction.refract(&normal, ior);
+        let refracted = ray.direction.refract(&normal, self.ior).and_then(|x| {
+            if reflectance(cos, self.ior) > uniform.sample(rng) {
+                None
+            } else {
+               Some(x) 
+            }
+        });
+        let ray_out = if let Some(refracted) = refracted {
             Ray::new(record.hit_point, refracted)
+        } else {
+            Ray::new(record.hit_point, ray.direction.reflect(&normal))
         };
-
         Scattered {
             ray_out: Some(ray_out),
             albedo: self.albedo,

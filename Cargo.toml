@@ -1,2 +1,2 @@
 [workspace]
-members = ["viewer", "raytracing", "simple-runner", "cli"]
+members = ["viewer", "raytracing", "cli"]

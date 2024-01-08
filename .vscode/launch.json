@@ -63,15 +63,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'simple-runner'",
+            "name": "Debug executable 'cli'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=simple-runner",
-                    "--package=simple-runner"
+                    "--bin=cli",
+                    "--package=cli"
                 ],
                 "filter": {
-                    "name": "simple-runner",
+                    "name": "cli",
                     "kind": "bin"
                 }
             },
@@ -81,16 +81,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'simple-runner'",
+            "name": "Debug unit tests in executable 'cli'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=simple-runner",
-                    "--package=simple-runner"
+                    "--bin=cli",
+                    "--package=cli"
                 ],
                 "filter": {
-                    "name": "simple-runner",
+                    "name": "cli",
                     "kind": "bin"
                 }
             },

@@ -3,17 +3,17 @@ use std::collections::HashSet;
 use anyhow::Result;
 
 use crate::{
-    tev::TevOutput,
+    output::{FileOutput, TevStreaming},
     tile_renderer::{TileMsg, TileRenderer},
     Args, AvailableOutput, AvailableScene, Dimensions,
 };
 
-pub trait Output: Send {
+pub trait OutputStreaming: Send {
     fn send_msg(&mut self, cli: &Cli, msg: &TileMsg) -> Result<()>;
 }
 
 pub struct Cli {
-    pub outputs: Vec<Box<dyn Output>>,
+    pub outputs: Vec<Box<dyn OutputStreaming>>,
     pub dimensions: Dimensions,
     pub tile_size: u32,
     pub sample_per_pixel: u32,
@@ -34,7 +34,7 @@ impl Cli {
 
         if outputs.contains(&AvailableOutput::Tev) {
             this.outputs
-                .push(Box::new(TevOutput::new(&this, args.tev_path)?));
+                .push(Box::new(TevStreaming::new(&this, args.tev_path)?));
         }
 
         Ok(this)
@@ -42,8 +42,9 @@ impl Cli {
 
     pub fn run(mut self) -> Result<()> {
         let mut outputs = Vec::new();
+        let file_output = FileOutput::new(&self);
 
-        TileRenderer {
+        let output_buffers = TileRenderer {
             width: self.dimensions.width,
             height: self.dimensions.height,
             spp: self.sample_per_pixel,
@@ -63,6 +64,9 @@ impl Cli {
                 }
             }
         })?;
+
+        file_output.commit(output_buffers)?;
+
         log::info!("Done");
         Ok(())
     }

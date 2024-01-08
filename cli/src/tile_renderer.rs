@@ -1,6 +1,7 @@
 use std::sync::mpsc::{channel, Receiver};
 
 use bytemuck::Zeroable;
+use image::{ImageBuffer, Luma, Rgb, Rgb32FImage};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
@@ -16,6 +17,16 @@ pub struct TileMsg {
     pub data: Vec<RenderResult>,
 }
 
+impl TileMsg {
+    fn ss(&self, tile_size: u32, height:u32, width: u32) -> (u32, u32, u32, u32) {
+        let x = self.tile_x * tile_size;
+        let y = self.tile_y * tile_size;
+        let tile_width = (x + tile_size).min(width) - x;
+        let tile_height = (y + tile_size).min(height) - y;
+        (x, y, tile_width, tile_height)
+    }
+}
+
 pub struct TileRenderer {
     pub height: u32,
     pub width: u32,
@@ -24,16 +35,53 @@ pub struct TileRenderer {
     pub scene: Scene,
 }
 
+pub struct OutputBuffers {
+    pub color: Rgb32FImage,
+    pub normal: Rgb32FImage,
+    pub albedo: Rgb32FImage,
+    pub depth: image::ImageBuffer<Luma<f32>, Vec<f32>>,
+    pub ray_depth: image::ImageBuffer<Luma<f32>, Vec<f32>>,
+}
+
 impl TileRenderer {
-    pub fn run<F: FnMut(TileMsg) -> () + Send>(self, on_tile_rendered: F) -> anyhow::Result<()> {
+    pub fn run<F: FnMut(&TileMsg) -> () + Send>(
+        self,
+        on_tile_rendered: F,
+    ) -> anyhow::Result<OutputBuffers> {
         let width = self.width;
         let height = self.height;
         let tile_size = self.tile_size;
 
-        // assert!(
-        // width % tile_size == 0 && height % tile_size == 0,
-        // "Cant split image in even tiles"
-        // );
+        let mut output_buffers = OutputBuffers {
+            color: ImageBuffer::new(width, height),
+            normal: ImageBuffer::new(width, height),
+            albedo: ImageBuffer::new(width, height),
+            depth: ImageBuffer::new(width, height),
+            ray_depth: ImageBuffer::new(width, height),
+        };
+
+        let mut push_tile_on_output_buffers = |msg: &TileMsg| {
+            let (x, y, width, height) = msg.ss(self.tile_size, self.height, self.width);
+
+            for i in 0..width {
+                for j in 0..height {
+                    let data_index = (i + width * j) as usize;
+                    let RenderResult {
+                        color,
+                        normal,
+                        albedo,
+                        z,
+                        ray_depth,
+                    } = msg.data[data_index];
+
+                    *output_buffers.ray_depth.get_pixel_mut(x + i, y + j) = Luma([ray_depth]);
+                    *output_buffers.depth.get_pixel_mut(x + i, y + j) = Luma([z]);
+                    *output_buffers.normal.get_pixel_mut(x + i, y + j) = Rgb(normal);
+                    *output_buffers.albedo.get_pixel_mut(x + i, y + j) = Rgb(albedo);
+                    *output_buffers.color.get_pixel_mut(x + i, y + j) = Rgb(color);
+                }
+            }
+        };
 
         let tile_count_x = (width as f32 / tile_size as f32).ceil() as u32;
         let tile_count_y = (height as f32 / tile_size as f32).ceil() as u32;
@@ -56,7 +104,8 @@ impl TileRenderer {
                 let mut on_tile_rendered = on_tile_rendered;
                 let rx: Receiver<TileMsg> = rx; // Force move without moving anything else
                 for msg in rx.iter() {
-                    on_tile_rendered(msg);
+                    push_tile_on_output_buffers(&msg);
+                    on_tile_rendered(&msg);
                     progress.print();
                 }
             });
@@ -108,6 +157,6 @@ impl TileRenderer {
             Err(err) => log::info!("Image generation interrupted: {}", err),
         };
 
-        Ok(())
+        Ok(output_buffers)
     }
 }

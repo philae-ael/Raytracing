@@ -63,7 +63,7 @@ impl ImplicitSolver for NewtonSolver {
         Some(HitPoint {
             t,
             hit_point: x,
-            normal: normal.normalize(),
+            normal: normal.normalize_or_zero(),
         })
     }
 }

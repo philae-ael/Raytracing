@@ -10,7 +10,13 @@ use vulkano::{
         Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo,
     },
     image::{view::ImageView, ImageAccess, ImageUsage, SwapchainImage},
-    instance::{debug::DebugUtilsLabel, Instance, InstanceCreateInfo},
+    instance::{
+        debug::{
+            DebugUtilsLabel, DebugUtilsMessageSeverity, DebugUtilsMessageType, DebugUtilsMessenger,
+            DebugUtilsMessengerCreateInfo,
+        },
+        Instance, InstanceCreateInfo,
+    },
     pipeline::graphics::viewport::Viewport,
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass},
     swapchain::{
@@ -68,6 +74,7 @@ pub struct VulkanBasicRenderer<T: CustomPipeline + 'static> {
     recreate_swapchain: bool,
 
     app: T,
+    _debug_callback: Option<DebugUtilsMessenger>,
 }
 
 impl<T: CustomPipeline> VulkanBasicRenderer<T> {
@@ -75,15 +82,49 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
         let library = VulkanLibrary::new()?;
         let mut required_extensions = vulkano_win::required_extensions(&*library);
         required_extensions.ext_debug_utils = true;
+
         let instance = Instance::new(
             library,
             InstanceCreateInfo {
                 enabled_extensions: required_extensions,
                 // enable enumerating devices that use non-conformant vulkan implementations. (ex. moltenvk)
                 enumerate_portability: true,
+                enabled_layers: vec!["VK_LAYER_KHRONOS_validation".to_owned()],
                 ..Default::default()
             },
         )?;
+        let _debug_callback = unsafe {
+            DebugUtilsMessenger::new(
+                instance.clone(),
+                DebugUtilsMessengerCreateInfo {
+                    message_severity: DebugUtilsMessageSeverity {
+                        error: true,
+                        warning: true,
+                        information: false,
+                        verbose: false,
+                        ..Default::default()
+                    },
+                    message_type: DebugUtilsMessageType {
+                        general: true,
+                        validation: true,
+                        performance: true,
+                        ..Default::default()
+                    },
+                    ..DebugUtilsMessengerCreateInfo::user_callback(Arc::new(|msg| {
+                        if msg.severity.error {
+                            log::error!("{}", msg.description);
+                        } else if msg.severity.warning {
+                            log::warn!("{}", msg.description);
+                        } else if msg.severity.information {
+                            log::info!("{}", msg.description);
+                        } else if msg.severity.verbose {
+                            log::debug!("{}", msg.description);
+                        }
+                    }))
+                },
+            )
+            .ok()
+        };
 
         let event_loop = EventLoop::new();
 
@@ -175,7 +216,7 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
             render_pass.clone(),
             device.clone(),
             queue.clone(),
-            images[0].dimensions().width_height()
+            images[0].dimensions().width_height(),
         )?;
 
         let mut this = Self {
@@ -189,6 +230,7 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
             viewport,
             framebuffers: vec![],
             app,
+            _debug_callback,
         };
 
         this.window_size_dependent_setup(&images)?;
@@ -259,7 +301,6 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
         let dimensions = images[0].dimensions().width_height();
         self.viewport.dimensions = [dimensions[0] as f32, dimensions[1] as f32];
 
-
         self.framebuffers = images
             .iter()
             .map(|image| -> Result<_> {
@@ -296,7 +337,6 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
             self.swapchain = new_swapchain;
             self.window_size_dependent_setup(&new_images)?;
             self.recreate_swapchain = false;
-
         }
         let (image_index, suboptimal, acquire_future) =
             match acquire_next_image(self.swapchain.clone(), None) {

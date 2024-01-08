@@ -1,0 +1,26 @@
+%% Define math env
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[theorem]
+\newtheorem{lemma}[theorem]{Lemma}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+
+
+%% Define math commands 
+\DeclareMathOperator{\dive}{div}
+\DeclareMathOperator{\rot}{rot}
+
+%% Define citation utilities
+\newcommand{\citedef}[2]{#2 (Definition \ref{#1})}
+
+
+%% Filter all undefined reference in a warning group that can be toggled as needed
+% stolen from https://tex.stackexchange.com/a/284222
+\usepackage{silence}
+\WarningFilter[todo]{latex}
+  {Reference }
+\WarningFilter[todo]{latex}
+  {There were undefined references} 
+
+\ActivateWarningFilters[todo]

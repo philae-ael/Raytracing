@@ -260,7 +260,7 @@ impl Into<Renderer> for DefaultRenderer {
         let camera = Camera::new(
             self.width,
             self.height,
-            f32::to_radians(90.),
+            f32::to_radians(70.),
             look_direction.length(),
             look_from,
             LookAt {

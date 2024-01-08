@@ -4,8 +4,8 @@ use image::Rgba;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
-use renderer::progress;
-use renderer::renderer::{DefaultRenderer, Renderer};
+use raytracing::progress;
+use raytracing::renderer::{DefaultRenderer, Renderer};
 
 use itertools::Itertools;
 

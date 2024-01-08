@@ -1,81 +1,47 @@
+pub mod camera;
 pub mod hit;
 pub mod math;
 pub mod progress;
 pub mod ray;
+pub mod renderer;
 
-use hit::{Hit, Hittable, Sphere};
-use image::{ImageBuffer, Rgb, RgbImage};
-use math::utils::*;
+use hit::Sphere;
+use image::{ImageBuffer, RgbImage};
 use math::vec::Vec3;
-use ray::Ray;
 
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
-fn ray_color(ray: &Ray) -> Rgb<f64> {
-    let direction = ray.direction;
-
-    let sphere = Sphere {
-        center: Vec3::new(0.0, 0.0, -1.0),
-        radius: 0.3,
-    };
-
-    if let Hit::Hit(record) = sphere.hit(ray, 0.0..f64::INFINITY) {
-        Rgb(((record.normal + Vec3::ONES) / 2.0).0)
-    } else {
-        let t = 0.5 * (direction.y() + 1.0);
-        let v = lerp(t, Vec3::new(0.5, 0.7, 1.0), Vec3::new(1.0, 1.0, 1.0));
-        Rgb(v.0)
-    }
-}
-
-pub struct Camera {
-    pub viewport_height: f64,
-    pub viewport_width: f64,
-    pub focal_length: f64,
-    pub center: Vec3,
-}
-
-impl Camera {
-    fn new(viewport_width: f64, viewport_height: f64, focal_length: f64, origin: Vec3) -> Self {
-        Self {
-            viewport_width,
-            viewport_height,
-            focal_length,
-            center: origin - focal_length * Vec3::Z,
-        }
-    }
-}
-
-pub struct Renderer {
-    pub camera: Camera,
-    pub origin: Vec3,
-}
-
-impl Renderer {
-    fn process_pixel(self: &Renderer, vx: f64, vy: f64) -> Rgb<u8> {
-        let direction = self.camera.center
-            + vx * self.camera.viewport_width * Vec3::X / 2.
-            + vy * self.camera.viewport_height * Vec3::Y / 2.;
-        let ray = Ray::new(self.origin, direction);
-        let color = ray_color(&ray);
-
-        // HDR to LDR
-        Rgb(color.0.map(|x| (256. * clamp(x)) as u8))
-    }
-}
+use crate::{camera::Camera, hit::HittableList, renderer::Renderer};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
+    let out_file = "out.png";
+    let out_file_old = "out_old.png";
+
+    // Ignore failure, we don't care if it doesn't work
+    let _ = std::fs::remove_file(out_file_old);
+    let _ = std::fs::rename(out_file, out_file_old);
+
     log::info!("Initialization");
     // Image
-    let width = 1920;
-    let height = 1080;
+    let width = 600;
+    let height = 400;
     let aspect_ratio = width as f64 / height as f64;
 
+    let sphere = Sphere {
+        center: Vec3::new(0.0, 0.0, -1.),
+        radius: 0.5,
+    };
+    let ground = Sphere {
+        center: Vec3::new(0.0, -100.5, -1.),
+        radius: 100.,
+    };
+    let scene = HittableList(vec![Box::new(sphere), Box::new(ground)]);
     let renderer = Renderer {
-        camera: Camera::new(2.0 * aspect_ratio, 2.0, 1.0, Vec3::ZERO),
-        origin: Vec3::ZERO,
+        camera: Camera::new(width, height, 2.0 * aspect_ratio, 2.0, 1.0, Vec3::ZERO),
+        scene,
+        options: renderer::RendererOptions { samples_per_pixel: 100, diffuse_depth: 50, gamma: 2.2 }
     };
 
     let mut im: RgbImage = ImageBuffer::new(width, height);
@@ -91,8 +57,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!();
         });
 
-        let progress = &progress;
-        let renderer = &renderer;
         im.enumerate_pixels_mut()
             .par_bridge()
             .for_each(|(x, y, p)| {
@@ -105,6 +69,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     log::info!("Saving image...");
-    im.save("out.jpg")?;
+    im.save("out.png")?;
     Ok(())
 }

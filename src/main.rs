@@ -14,7 +14,7 @@ use math::vec::Vec3;
 use crate::{
     camera::Camera,
     hit::HittableList,
-    material::{Dielectric, Diffuse, Emit, MaterialDescriptor, MaterialId, Metal},
+    material::{texture, Dielectric, Diffuse, Emit, MaterialDescriptor, MaterialId, Metal},
     math::quaternion::Quaternion,
     renderer::{OutputBuffers, Renderer},
 };
@@ -31,40 +31,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         MaterialDescriptor {
             label: Some("Bubble like".to_string()),
             material: Box::new(Dielectric {
-                albedo: Rgb([0.7, 0.3, 0.3]),
+                texture: Box::new(texture::Uniform(Rgb([0.7, 0.3, 0.3]))),
                 ior: 0.8,
                 invert_normal: false,
             }),
         },
         MaterialDescriptor {
             label: Some("Diffuse orange".to_string()),
-            material: Box::new(Diffuse{
-                albedo: Rgb([0.8, 0.6, 0.2]),
+            material: Box::new(Diffuse {
+                texture: Box::new(texture::Checker {
+                    odd: Box::new(texture::Uniform(Rgb([0.8, 0.6, 0.2]))),
+                    even: Box::new(texture::Uniform(Rgb([0., 0., 0.]))),
+                }),
             }),
         },
         MaterialDescriptor {
             label: Some("Gray metal".to_string()),
             material: Box::new(Metal {
-                albedo: Rgb([0.8, 0.8, 0.8]),
+                texture: Box::new(texture::Uniform(Rgb([0.8, 0.8, 0.8]))),
                 roughness: 0.6,
             }),
         },
         MaterialDescriptor {
             label: Some("Ground".to_string()),
             material: Box::new(Diffuse {
-                albedo: Rgb([0.2, 0.9, 0.3]),
+                texture: Box::new(texture::Uniform(Rgb([0.2, 0.9, 0.3]))),
             }),
         },
         MaterialDescriptor {
             label: Some("Light".to_string()),
             material: Box::new(Emit {
-                color: Rgb([2.5, 3.7, 3.9]),
+                texture: Box::new(texture::Uniform(Rgb([2.5, 3.7, 3.9]))),
             }),
         },
         MaterialDescriptor {
             label: Some("Sky".to_string()),
             material: Box::new(Emit {
-                color: Rgb([0.3, 0.3, 0.4]),
+                texture: Box::new(texture::Uniform(Rgb([0.3, 0.3, 0.4]))),
             }),
         },
     ];
@@ -119,7 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         scene,
         materials,
         options: renderer::RendererOptions {
-            samples_per_pixel: 500,
+            samples_per_pixel: 8,
             diffuse_depth: 20,
             gamma: 2.2,
             world_material: MaterialId(5),

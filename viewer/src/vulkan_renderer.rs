@@ -83,7 +83,21 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
         let mut required_extensions = vulkano_win::required_extensions(&*library);
         required_extensions.ext_debug_utils = true;
 
-        required_extensions.ext_validation_features = true;
+        let validation_layers = if cfg!(feature = "validationlayers") {
+            vec!["VK_LAYER_KHRONOS_validation".to_owned()]
+        } else {
+            vec![]
+        };
+
+        let validation_features = if cfg!(feature = "validationlayers") {
+            required_extensions.ext_validation_features = true;
+            vec![
+                ValidationFeatureEnable::BestPractices,
+                ValidationFeatureEnable::GpuAssisted,
+            ]
+        } else {
+            vec![]
+        };
 
         let instance = Instance::new(
             library,
@@ -91,14 +105,12 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
                 enabled_extensions: required_extensions,
                 // enable enumerating devices that use non-conformant vulkan implementations. (ex. moltenvk)
                 enumerate_portability: true,
-                enabled_layers: vec!["VK_LAYER_KHRONOS_validation".to_owned()],
-                enabled_validation_features: vec![
-                    ValidationFeatureEnable::BestPractices,
-                    ValidationFeatureEnable::GpuAssisted,
-                ],
+                enabled_layers: validation_layers,
+                enabled_validation_features: validation_features,
                 ..Default::default()
             },
         )?;
+
         let _debug_callback = unsafe {
             DebugUtilsMessenger::new(
                 instance.clone(),
@@ -118,13 +130,13 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
                     },
                     ..DebugUtilsMessengerCreateInfo::user_callback(Arc::new(|msg| {
                         if msg.severity.error {
-                            log::error!("{}", msg.description);
+                            log::error!(target: "vulkan::validation", "{}", msg.description);
                         } else if msg.severity.warning {
-                            log::warn!("{}", msg.description);
+                            log::warn!(target: "vulkan::validation", "{}", msg.description);
                         } else if msg.severity.information {
-                            log::info!("{}", msg.description);
+                            log::info!(target: "vulkan::validation", "{}", msg.description);
                         } else if msg.severity.verbose {
-                            log::debug!("{}", msg.description);
+                            log::debug!(target: "vulkan::validation", "{}", msg.description);
                         }
                     }))
                 },

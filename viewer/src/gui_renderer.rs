@@ -68,7 +68,7 @@ impl GUIRenderer {
 
             match generation_result {
                 Ok(_) => log::info!("Image fully generated"),
-                Err(_) => log::info!("Image generation interrupted"),
+                Err(err) => log::info!("Image generation interrupted: {}", err),
             };
 
             // To prevent progress display thread to be locked forever

@@ -23,6 +23,8 @@ impl Integrator for WhittedIntegrator {
             return RayResult::default();
         }
 
+        let mut ray_depth = (depth + 1) as f32;
+
         counter!("ray cast");
 
         let IntersectionResult::Instersection(intersection)= renderer.objects.intersection_full(ray) else {return self.sky_ray(renderer, ray);};
@@ -60,6 +62,7 @@ impl Integrator for WhittedIntegrator {
 
             let refracted_ray = Ray::new_with_range(position, refracted, 0.01..INFINITY);
             let refracted_ray_result = self.ray_cast(renderer, refracted_ray, depth + 1);
+            ray_depth = ray_depth.max(refracted_ray_result.ray_depth);
 
             transmission_color * refracted_ray_result.color.vec()
         };
@@ -70,6 +73,7 @@ impl Integrator for WhittedIntegrator {
 
             let reflected_ray = Ray::new_with_range(position, reflected, 0.01..INFINITY);
             let reflected_ray_result = self.ray_cast(renderer, reflected_ray, depth + 1);
+            ray_depth = ray_depth.max(reflected_ray_result.ray_depth);
 
             reflection_color * reflected_ray_result.color.vec()
         };
@@ -81,7 +85,7 @@ impl Integrator for WhittedIntegrator {
             albedo: albedo.rgb(),
             color,
             z: intersection.t,
-            ray_depth: (depth + 1) as f32,
+            ray_depth,
             samples_accumulated: 1,
         }
     }

@@ -2,6 +2,8 @@
 
 use std::ops::{Add, Div, Index, IndexMut, Mul, Neg, Sub};
 
+use image::Rgb;
+
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Vec3(pub [f64; 3]);
 
@@ -59,12 +61,12 @@ impl Vec3 {
         self.length_squared() < 1e-4
     }
     pub fn reflect(&self, normal: &Vec3) -> Vec3 {
-        self - &(2.0 * self.dot(normal) * normal)
+        (2.0 * self.dot(normal) * normal) - *self
     }
     pub fn refract(&self, normal: &Vec3, ior: f64) -> Vec3 {
         let cos_theta = -self.dot(normal);
-        let refracted_perp = ior * (self + &(cos_theta*normal));
-        let refracted_par = - f64::sqrt(1.0 - refracted_perp.length_squared())*normal;
+        let refracted_perp = ior * (self + &(cos_theta * normal));
+        let refracted_par = -f64::sqrt(1.0 - refracted_perp.length_squared()) * normal;
         refracted_perp + refracted_par
     }
 }
@@ -182,5 +184,25 @@ impl Neg for Vec3 {
 impl From<f64> for Vec3 {
     fn from(x: f64) -> Self {
         Vec3([x, x, x])
+    }
+}
+
+pub trait RgbAsVec3Ext {
+    fn vec(&self) -> Vec3;
+}
+
+impl RgbAsVec3Ext for Rgb<f64> {
+    fn vec(&self) -> Vec3 {
+        Vec3(self.0)
+    }
+}
+
+pub trait Vec3AsRgbExt {
+    fn rgb(&self) -> Rgb<f64>;
+}
+
+impl Vec3AsRgbExt for Vec3 {
+    fn rgb(&self) -> Rgb<f64> {
+        Rgb(self.0)
     }
 }

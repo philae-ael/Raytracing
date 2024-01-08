@@ -1,4 +1,9 @@
-use crate::{math::vec::Vec3, ray::Ray};
+use rand::prelude::Distribution;
+
+use crate::{
+    math::{quaternion::Quaternion, utils::*, vec::Vec3},
+    ray::Ray,
+};
 
 pub struct Camera {
     pub width: u32,
@@ -6,8 +11,9 @@ pub struct Camera {
     pub viewport_height: f64,
     pub viewport_width: f64,
     pub focal_length: f64,
-    pub center: Vec3,
     pub origin: Vec3,
+    pub rotation: Quaternion,
+    pub aperture: f64,
 }
 
 impl Camera {
@@ -17,26 +23,36 @@ impl Camera {
         vfov: f64,
         focal_length: f64,
         origin: Vec3,
+        rotation: Quaternion,
+        aperture: f64,
     ) -> Self {
         let theta = vfov;
-        let h = f64::tan(theta/2.);
+        let h = f64::tan(theta / 2.);
 
         let aspect_ratio = width as f64 / height as f64;
         Self {
             width,
             height,
-            viewport_height: 2.0*h,
-            viewport_width: 2.0*h*aspect_ratio,
+            viewport_height: focal_length * h, // From center to top
+            viewport_width: focal_length * h * aspect_ratio, // From center to left
             focal_length,
-            center: origin - focal_length * Vec3::Z,
             origin,
+            rotation,
+            aperture,
         }
     }
 
-    pub fn ray(&self, vx: f64, vy: f64) -> Ray {
-        let direction = self.center
-            + vx * self.viewport_width * Vec3::X / 2.
-            + vy * self.viewport_height * Vec3::Y / 2.;
-        Ray::new(self.origin, direction)
+    pub fn ray(&self, vx: f64, vy: f64, rng: &mut rand::rngs::ThreadRng) -> Ray {
+        let [dx, dy] = UnitBall2.sample(rng);
+        let offset = self.aperture / 2.0 * Vec3([dx, dy, 0.0]);
+        let center = self.origin - self.focal_length * Vec3::Z;
+
+        let direction = center - (self.origin + offset)
+            + vx * self.viewport_width * Vec3::X
+            + vy * self.viewport_height * Vec3::Y;
+        Ray::new(
+            self.origin + self.rotation.rotate(offset),
+            self.rotation.rotate(direction),
+        )
     }
 }

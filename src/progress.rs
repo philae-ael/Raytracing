@@ -29,7 +29,6 @@ impl Progress {
     }
     pub fn done(&self) -> bool {
         self.get_raw() >= self.max
-
     }
 }
 
@@ -48,4 +47,3 @@ impl Display for Progress {
         )
     }
 }
-

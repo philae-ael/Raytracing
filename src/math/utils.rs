@@ -26,6 +26,10 @@ use rand::{
     Rng,
 };
 
+use crate::material::texture::Uv;
+
+use super::vec::Vec3;
+
 #[derive(Default)]
 pub struct UnitBall3RejectionMethod;
 #[derive(Default)]
@@ -88,4 +92,13 @@ impl Distribution<[f64; 2]> for UnitSphere2 {
         let (s, c) = f64::sin_cos(phi);
         [c, s]
     }
+}
+
+pub fn sphere_uv_from_direction(direction: &Vec3) -> Uv {
+    let h = direction.dot(&Vec3::Y);
+    let a = (direction - &(h * Vec3::Y)).normalize();
+    let u = 0.5 + f64::atan2(a.x(), a.z()) / std::f64::consts::TAU;
+    let v = f64::acos(h) / std::f64::consts::PI;
+
+    [u, v]
 }

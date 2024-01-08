@@ -1,3 +1,4 @@
+pub mod texture;
 use std::path::Path;
 
 use image::Rgb;
@@ -11,6 +12,8 @@ use crate::{
     },
     ray::Ray,
 };
+
+use self::texture::Texture;
 
 pub struct MaterialDescriptor {
     pub label: Option<String>,
@@ -48,7 +51,7 @@ fn non_zero_or(v: Vec3, n: Vec3) -> Vec3 {
 }
 
 pub struct Diffuse {
-    pub albedo: Rgb<f64>,
+    pub texture: Box<dyn Texture>,
 }
 
 impl Material for Diffuse {
@@ -58,36 +61,33 @@ impl Material for Diffuse {
         let bounce_direction = non_zero_or(bounce_normal + bounce_noise, bounce_normal);
 
         Scattered {
-            ray_out: Some(Ray {
-                origin: record.hit_point,
-                direction: bounce_direction,
-            }),
-            albedo: self.albedo,
+            ray_out: Some(Ray::new (record.hit_point, bounce_direction)),
+            albedo: self.texture.color(record.uv)
         }
     }
 }
 
 pub struct Emit {
-    pub color: Rgb<f64>,
+    pub texture: Box<dyn Texture>,
 }
 
 impl Material for Emit {
     fn scatter(
         &self,
         _ray: &Ray,
-        _record: &HitRecord,
+        record: &HitRecord,
         _rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered {
         Scattered {
             ray_out: None,
-            albedo: self.color,
+            albedo: self.texture.color(record.uv)
         }
     }
 }
 
 pub struct Metal {
     pub roughness: f64,
-    pub albedo: Rgb<f64>,
+    pub texture: Box<dyn Texture>
 }
 
 impl Material for Metal {
@@ -105,13 +105,13 @@ impl Material for Metal {
 
         Scattered {
             ray_out,
-            albedo: self.albedo,
+            albedo: self.texture.color(record.uv),
         }
     }
 }
 
 pub struct Dielectric {
-    pub albedo: Rgb<f64>,
+    pub texture: Box<dyn Texture>,
     pub ior: f64,
     pub invert_normal: bool,
 }
@@ -147,7 +147,7 @@ impl Material for Dielectric {
         };
         Scattered {
             ray_out: Some(ray_out),
-            albedo: self.albedo,
+            albedo: self.texture.color(record.uv),
         }
     }
 }

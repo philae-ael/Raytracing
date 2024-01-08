@@ -1,9 +1,12 @@
+use std::marker::PhantomData;
+
 use super::math::vec::Vec3;
 
 #[derive(Debug)]
 pub struct Ray {
     pub origin: Vec3,
     pub direction: Vec3,
+    _marker: PhantomData<()> // Can't construct Ray without new
 }
 
 impl Ray {
@@ -11,6 +14,7 @@ impl Ray {
         Self {
             origin,
             direction: direction.normalize(),
+            _marker: Default::default()
         }
     }
     pub fn at(&self, t: f64) -> Vec3 {

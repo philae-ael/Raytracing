@@ -7,7 +7,7 @@ use crate::{
     color,
     hit::{Hit, HitRecord, Hittable, HittableList},
     material::{MaterialDescriptor, MaterialId},
-    math::vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
+    math::{vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt}, utils::sphere_uv_from_direction},
     progress,
     ray::Ray,
 };
@@ -201,17 +201,18 @@ impl Renderer {
         } else {
             let material = &self.materials[self.options.world_material.0].material;
             let record = HitRecord {
-                t: 0.0,
                 hit_point: ray.origin,
                 normal: -ray.direction,
+                t: 0.0,
                 material: self.options.world_material,
+                uv: sphere_uv_from_direction(&-ray.direction),
             };
             let scattered = material.scatter(ray, &record, &mut rng);
             RayResult {
                 normal: Vec3::ZERO,
+                albedo: color::BLACK,
                 color: scattered.albedo,
                 depth: 0.0,
-                albedo: color::BLACK,
             }
         }
     }

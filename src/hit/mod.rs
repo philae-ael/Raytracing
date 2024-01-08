@@ -1,8 +1,8 @@
 use std::ops::Range;
 
 use crate::{
-    material::MaterialId,
-    math::vec::{Normal, Point},
+    material::{MaterialId, texture::Uv},
+    math::{vec::{Normal, Point}, utils::sphere_uv_from_direction},
     ray::Ray,
 };
 
@@ -11,6 +11,7 @@ pub struct HitRecord {
     pub normal: Normal,
     pub t: f64,
     pub material: MaterialId,
+    pub uv: Uv
 }
 
 pub enum Hit {
@@ -54,11 +55,13 @@ impl Hittable for Sphere {
             };
             let hit_point = ray.at(t);
             let normal = (hit_point - self.center).normalize();
+            let uv = sphere_uv_from_direction(&normal); 
             let record = HitRecord {
                 hit_point,
                 normal,
                 t,
                 material: self.material,
+                uv
             };
             Hit::Hit(record)
         }

@@ -1,4 +1,4 @@
-# The famous Raytracing in a Weekend Book
+# The famous Raytracing in a Week~~end~~ Book
 
 Current result: 
 ![Current result](./output/ldr/color.jpg)

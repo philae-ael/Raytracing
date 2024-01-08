@@ -21,6 +21,7 @@ pub struct TileMsg {
 pub struct TevRenderer {
     pub height: u32,
     pub width: u32,
+    pub spp: u32,
     pub tile_size: u32,
 }
 
@@ -49,11 +50,17 @@ impl TevRenderer {
         let image_name = format!("raytraced-{}", Self::get_id());
 
         let channel_names = [
-            "R", "G", "B", // color
-            "normal.X", "normal.Y", "normal.Z", // normal
-            "albedo.R", "albedo.G", "albedo.B", // albedo
+            "R",
+            "G",
+            "B", // color
+            "normal.X",
+            "normal.Y",
+            "normal.Z", // normal
+            "albedo.R",
+            "albedo.G",
+            "albedo.B", // albedo
             "Z",        // depth
-            "ray_depth"
+            "ray_depth",
         ];
         let channel_offset = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let channel_stride = [11; 11];
@@ -70,7 +77,12 @@ impl TevRenderer {
         let mut generation_result = Ok(());
 
         rayon::scope(|s| {
-            let renderer: Renderer = DefaultRenderer { width, height }.into();
+            let renderer: Renderer = DefaultRenderer {
+                width,
+                height,
+                spp: self.spp,
+            }
+            .into();
             let (tx, rx) = channel();
 
             log::info!("Generating image...");

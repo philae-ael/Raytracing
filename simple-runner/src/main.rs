@@ -9,8 +9,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Image
     let width = 1920;
     let height = 1080;
+    let spp = 150;
 
-    let renderer: Renderer = DefaultRenderer { width, height }.into();
+    let mut renderer: Renderer = DefaultRenderer { width, height, spp }.into();
+    renderer.options.gamma = 2.2;
+
     let mut output_buffers = OutputBuffers {
         color: ImageBuffer::new(width, height),
         normal: ImageBuffer::new(width, height),

@@ -10,13 +10,14 @@ mod tev_renderer;
 #[derive(Parser, Debug)]
 struct Args {
     tev_path: Option<PathBuf>,
-    #[arg(short, long)]
-    size: Option<String>,
+    #[arg(long = "spp", default_value_t = 20)]
+    sample_per_pixel: u32,
 }
 
 fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let args = Args::parse();
+
     let client = if let Some(tev_path) = args.tev_path {
         let command = std::process::Command::new(tev_path);
         TevClient::spawn(command)
@@ -25,9 +26,11 @@ fn main() -> Result<()> {
             "127.0.0.1:14158",
         )?))
     }?;
+
     TevRenderer {
         width: 800,
         height: 600,
+        spp: args.sample_per_pixel,
         tile_size: 20,
     }
     .run(client)

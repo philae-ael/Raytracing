@@ -7,7 +7,7 @@ use std::{fmt::Display, str::FromStr};
 
 use clap::{Parser, ValueEnum};
 use cli::Cli;
-use raytracing::{
+use rt::{
     integrators::{BasicIntegrator, Integrator, WhittedIntegrator},
     scene::{
         examples::{CornellBoxScene, DebugScene, DragonScene, SpheresScene, StandfordBunnyScene},

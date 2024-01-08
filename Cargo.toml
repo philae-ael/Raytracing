@@ -1,5 +1,5 @@
 [workspace]
-members = ["raytracing", "cli"]
+members = ["crates/*"]
 
 [profile.release] 
 debug = 2

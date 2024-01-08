@@ -41,6 +41,9 @@ impl Progress {
     pub fn print(&self) {
         use std::io::Write;
         print!("\r{}", self);
+        if self.done() {
+            println!("");
+        }
         let _ = std::io::stdout().flush();
     }
     pub fn done(&self) -> bool {

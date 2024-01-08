@@ -2,10 +2,10 @@ use glam::Vec3;
 use image::Rgb;
 
 use crate::{
-    material::{texture, Dielectric, Diffuse, Emit, MaterialDescriptor, MaterialId, Metal}, aggregate::shapelist::ShapeList,
+    aggregate::shapelist::ShapeList,
+    material::{texture, Dielectric, Diffuse, Emit, MaterialDescriptor, MaterialId, Metal},
+    shape::Sphere,
 };
-
-use super::hit::Sphere;
 
 pub struct DefaultScene;
 
@@ -60,41 +60,32 @@ impl Into<Scene> for DefaultScene {
 
         let objects = ShapeList(vec![
             Box::new(Sphere {
-                label: Some("Bubble Sphere".to_string()),
                 center: Vec3::new(0.0, 0.0, -1.),
                 radius: 0.5,
                 material: MaterialId(0),
             }),
-            Box::new(crate::surface::HittableImplicitSurface {
-                surf: crate::surface::Cube {
+            Box::new(crate::shape::implicit::ImplicitShape {
+                surface: crate::shape::implicit::Cube {
                     origin: Vec3::new(1.0, 0.0, -1.),
                     size: 0.5,
-                    material: MaterialId(1),
                 },
-                solv: crate::surface::NewtonSolver {
-                    max_step: 2,
+                solver: crate::shape::implicit::solvers::NewtonSolver {
+                    max_iter: 2,
                     eps: 0.01,
                 },
+                material: MaterialId(1),
             }),
             Box::new(Sphere {
-                label: Some("Metal Sphere".to_string()),
                 center: Vec3::new(-1.0, 0.0, -1.),
                 radius: 0.5,
                 material: MaterialId(2),
             }),
-            Box::new(crate::surface::HittableImplicitSurface {
-                surf: crate::surface::Sphere {
-                    origin: Vec3::new(0.0, -100.5, -1.),
-                    radius: 100.,
-                    material: MaterialId(3),
-                },
-                solv: crate::surface::NewtonSolver {
-                    max_step: 2,
-                    eps: 0.01,
-                },
+            Box::new(Sphere {
+                center: Vec3::new(0.0, -100.5, -1.),
+                radius: 100.,
+                material: MaterialId(3),
             }),
             Box::new(Sphere {
-                label: Some("Light".to_string()),
                 center: Vec3::new(0.5, -0.4, -0.5),
                 radius: 0.1,
                 material: MaterialId(4),

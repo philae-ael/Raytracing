@@ -5,12 +5,12 @@ use image::Rgb;
 use rand::{distributions::Uniform, prelude::Distribution};
 
 use crate::{
-    hit::HitRecord,
     math::{
         distributions::{UnitBall3, UnitBall3PolarMethod},
         vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
     },
     ray::Ray,
+    shape::local_info,
 };
 
 use self::texture::Texture;
@@ -28,8 +28,13 @@ pub struct Scattered {
     pub ray_out: Option<Ray>,
 }
 
-pub trait Material  {
-    fn scatter(&self, ray: Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered;
+pub trait Material {
+    fn scatter(
+        &self,
+        ray: Ray,
+        record: &local_info::Full,
+        rng: &mut rand::rngs::ThreadRng,
+    ) -> Scattered;
 }
 
 /// This function makes sure v and n are opposed by giving back a flipped n if needed
@@ -55,14 +60,19 @@ pub struct Diffuse {
 }
 
 impl Material for Diffuse {
-    fn scatter(&self, ray: Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
+    fn scatter(
+        &self,
+        ray: Ray,
+        record: &local_info::Full,
+        rng: &mut rand::rngs::ThreadRng,
+    ) -> Scattered {
         let bounce_noise =
             Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
         let bounce_normal = oppose(ray.direction, record.normal);
         let bounce_direction = non_zero_or(bounce_normal + bounce_noise, bounce_normal);
 
         Scattered {
-            ray_out: Some(Ray::new(record.hit_point, bounce_direction)),
+            ray_out: Some(Ray::new(record.pos, bounce_direction)),
             albedo: self.texture.color(record.uv),
         }
     }
@@ -76,7 +86,7 @@ impl Material for Emit {
     fn scatter(
         &self,
         _ray: Ray,
-        record: &HitRecord,
+        record: &local_info::Full,
         _rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered {
         Scattered {
@@ -92,14 +102,19 @@ pub struct Metal {
 }
 
 impl Material for Metal {
-    fn scatter(&self, ray: Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
-        let ray_direction = -ray.direction.reflect(record.normal);
+    fn scatter(
+        &self,
+        ray: Ray,
+        record: &local_info::Full,
+        rng: &mut rand::rngs::ThreadRng,
+    ) -> Scattered {
+        let ray_direction = ray.direction.reflect(record.normal);
         let fuziness = self.roughness
             * Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
         let ray_direction = non_zero_or(ray_direction + fuziness, ray_direction);
 
         let ray_out = if ray_direction.dot(record.normal) > 0.0 {
-            Some(Ray::new(record.hit_point, ray_direction))
+            Some(Ray::new(record.pos, ray_direction))
         } else {
             None
         };
@@ -118,7 +133,12 @@ pub struct Dielectric {
 }
 
 impl Material for Dielectric {
-    fn scatter(&self, ray: Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
+    fn scatter(
+        &self,
+        ray: Ray,
+        record: &local_info::Full,
+        rng: &mut rand::rngs::ThreadRng,
+    ) -> Scattered {
         fn reflectance(cos: f32, ref_idx: f32) -> f32 {
             let r0 = (1. - ref_idx) / (1. + ref_idx);
             let r0 = r0 * r0;
@@ -142,9 +162,9 @@ impl Material for Dielectric {
             }
         });
         let ray_out = if let Some(refracted) = refracted {
-            Ray::new(record.hit_point, refracted)
+            Ray::new(record.pos, refracted)
         } else {
-            Ray::new(record.hit_point, ray.direction.reflect(normal))
+            Ray::new(record.pos, ray.direction.reflect(normal))
         };
         Scattered {
             ray_out: Some(ray_out),
@@ -167,7 +187,7 @@ impl Material for Environment {
     fn scatter(
         &self,
         ray: Ray,
-        _record: &HitRecord,
+        _record: &local_info::Full,
         _rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered {
         let width = self.environment.width();
@@ -200,7 +220,7 @@ impl Material for Phong {
     fn scatter(
         &self,
         ray: Ray,
-        record: &HitRecord,
+        record: &local_info::Full,
         _rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered {
         let light_dir = self.light_dir.normalize();
@@ -230,7 +250,7 @@ impl Material for Gooch {
     fn scatter(
         &self,
         ray: Ray,
-        record: &HitRecord,
+        record: &local_info::Full,
         _rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered {
         let light_dir = self.light_dir.normalize();

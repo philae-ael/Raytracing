@@ -28,7 +28,7 @@ pub trait RefrReflVecExt {
 
 impl RefrReflVecExt for Vec3 {
     fn reflect(self, normal: Vec3) -> Vec3 {
-        (2.0 * self.dot(normal) * normal) - self
+        self - (2.0 * self.dot(normal) * normal)
     }
 
     fn refract(self, mut normal: Vec3, ior: f32) -> Option<Vec3> {

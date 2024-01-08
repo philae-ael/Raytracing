@@ -1,7 +1,7 @@
 use rand::prelude::Distribution;
 
 use crate::{
-    math::{quaternion::Quat, distributions::*, vec::Vec3},
+    math::{distributions::*, quaternion::Quat, vec::Vec3},
     ray::Ray,
 };
 

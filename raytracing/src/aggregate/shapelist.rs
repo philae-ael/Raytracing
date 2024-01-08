@@ -1,30 +1,35 @@
 use crate::{
-    hit::{Hit, Hittable},
     ray::Ray,
+    shape::{local_info, FullIntersectionResult, IntersectionResult, MinIntersectionResult, Shape},
 };
 
 use super::Aggregate;
 
-pub struct ShapeList(pub Vec<Box<dyn Hittable + Sync>>);
+pub struct ShapeList(pub Vec<Box<dyn Shape + Sync>>);
+impl Aggregate for ShapeList {}
 
-impl Aggregate for ShapeList {
-    fn first_hit(&self, mut ray: Ray) -> Hit {
-        let mut res = Hit::NoHit;
+impl Shape for ShapeList {
+    fn intersection_full(&self, mut ray: Ray) -> FullIntersectionResult {
+        let mut res = IntersectionResult::NoIntersection;
 
         for hittable in self.0.iter() {
             if ray.range().is_empty() {
-                return Hit::NoHit;
+                return IntersectionResult::NoIntersection;
             }
 
-            if let Hit::Hit(record) = hittable.hit(ray) {
+            if let IntersectionResult::Instersection(record) = hittable.intersection_full(ray) {
                 ray.bounds.1 = record.t;
-                res = Hit::Hit(record);
+                res = IntersectionResult::Instersection(record);
             }
         }
         res
     }
 
-    fn first_hitpoint(&self, _ray: crate::ray::Ray) -> crate::surface::HitPoint {
+    fn intersect_bare(&self, _ray: Ray) -> MinIntersectionResult {
+        todo!()
+    }
+
+    fn local_information(&self, _p: glam::Vec3) -> Option<local_info::Full> {
         todo!()
     }
 }

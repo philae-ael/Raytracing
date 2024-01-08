@@ -1,7 +1,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use anyhow::Result;
-use raytracing::utils::{counter, timer::timed_scope};
+use raytracing::utils::{counter, timer::timed_scope_log};
 
 use crate::{
     output::{FileOutput, TevStreaming},
@@ -56,7 +56,7 @@ impl Cli {
     }
 
     pub fn run(mut self) -> Result<()> {
-        let output_buffers = timed_scope("Run tile renderer", || {
+        let output_buffers = timed_scope_log("Run tile renderer", || {
             self.tile_renderer.run(|msg| {
                 let mut outputs = Vec::new();
                 // Move tev_cli out of self, work with it and move it back in self
@@ -71,7 +71,8 @@ impl Cli {
                     }
                 }
             })
-        })?;
+        })
+        .res?;
 
         for final_output in self.final_outputs {
             final_output.commit(&output_buffers)?;

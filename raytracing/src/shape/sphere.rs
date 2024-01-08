@@ -7,9 +7,8 @@ use crate::{
 };
 
 use super::{
-    local_info,
-    shape::{MinIntersectionResult, RayIntersection},
-    FullIntersectionResult, IntersectionResult, Shape,
+    local_info, FullIntersectionResult, IntersectionResult, Shape,
+    {MinIntersectionResult, RayIntersection},
 };
 
 /// A simple sphere shape.
@@ -55,7 +54,7 @@ impl Shape for Sphere {
             // Either find first hit if hit is in range else, find the second hit
             let ta = (-b_half + f32::sqrt(discriminant_quarter)) / a;
             let tb = (-b_half - f32::sqrt(discriminant_quarter)) / a;
-            let (ta, tb) = if ta > tb { (tb, ta) } else { (tb, ta) };
+            let (ta, tb) = (ta.min(tb), ta.max(tb));
             let range = ray.range();
             if range.contains(&ta) {
                 ta

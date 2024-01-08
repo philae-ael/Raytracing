@@ -16,7 +16,7 @@ impl From<LookAt> for Quat {
 
         let cos = forward.dot(direction);
         let angle = cos.acos();
-        match (cos.abs() - 1.0).as_non_zero(0.01) {
+        match (cos.abs() - 1.0).into_non_zero(0.01) {
             Some(_non_0deg_cos) => {
                 let axe = forward.cross(direction);
                 Self::from_axis_angle(axe.normalize(), angle)

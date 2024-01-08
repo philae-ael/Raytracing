@@ -7,7 +7,7 @@ use crate::{
 };
 
 use super::{
-    local_info, shape::RayIntersection, FullIntersectionResult, IntersectionResult, Shape,
+    local_info, RayIntersection, FullIntersectionResult, IntersectionResult, Shape,
 };
 
 pub struct Plane {

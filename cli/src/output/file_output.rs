@@ -21,7 +21,7 @@ impl FileOutput {
 impl FinalOutput for FileOutput {
     fn commit(&self, output_buffers: &OutputBuffers) -> Result<()> {
         if let Some(ref hdr_output) = self.hdr_outdir {
-            let convert_luma = |x| ConvertBuffer::<ImageBuffer<Rgb<f32>, Vec<f32>>>::convert(x);
+            let convert_luma = ConvertBuffer::<ImageBuffer<Rgb<f32>, Vec<f32>>>::convert;
             let hdr_path = hdr_output.as_path();
             std::fs::create_dir_all(hdr_output)?;
 
@@ -50,8 +50,8 @@ impl FinalOutput for FileOutput {
             }
         }
         if let Some(ref ldr_output) = self.ldr_outdir {
-            let convert_luma = |x| ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(x);
-            let convert_rgb = |x| ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(x);
+            let convert_luma = ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert;
+            let convert_rgb = ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert;
             let ldr_path = ldr_output.as_path();
             std::fs::create_dir_all(ldr_output)?;
 

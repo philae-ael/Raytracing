@@ -14,6 +14,11 @@ impl SampleSeries {
     pub fn add_sample(&mut self, sample: f32) {
         self.samples.push(sample)
     }
+    pub fn merge(lhs: Self, mut rhs: Self) -> Self {
+        let mut samples = lhs.samples;
+        samples.append(&mut rhs.samples);
+        Self { samples }
+    }
 
     pub fn mean(&self) -> f32 {
         self.samples.iter().fold(0.0, |acc, sample| acc + sample) / self.samples.len() as f32
@@ -88,15 +93,11 @@ impl RgbSeries {
         Rgb::from_array([r, g, b])
     }
 
-    pub fn merge(&mut self, other: &Self) {
-        for r in other.r.samples.iter() {
-            self.r.add_sample(*r)
-        }
-        for g in other.g.samples.iter() {
-            self.g.add_sample(*g)
-        }
-        for b in other.b.samples.iter() {
-            self.b.add_sample(*b)
+    pub fn merge(lhs: Self, rhs: Self) -> Self {
+        Self {
+            r: SampleSeries::merge(lhs.r, rhs.r),
+            g: SampleSeries::merge(lhs.g, rhs.g),
+            b: SampleSeries::merge(lhs.b, rhs.b),
         }
     }
 }

@@ -31,8 +31,8 @@ impl Transformer<Vec3> for Transform {
     /// Apply rotation then scale but not translation !
     fn apply(&self, v: Vec3) -> Vec3 {
         let rotated = self.rot.mul_vec3(v);
-        let rotated_scaled = self.scale * rotated;
-        rotated_scaled
+
+        self.scale * rotated
     }
 }
 

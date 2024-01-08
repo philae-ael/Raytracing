@@ -23,9 +23,9 @@ impl<S: colorspace::Colorspace> Color<S> {
     }
 }
 
-impl<S: colorspace::Colorspace> Into<Color<S>> for [f32; 3] {
-    fn into(self) -> Color<S> {
-        Color::<S>::from_array(self)
+impl<S: colorspace::Colorspace> From<[f32; 3]> for Color<S> {
+    fn from(val: [f32; 3]) -> Self {
+        Color::<S>::from_array(val)
     }
 }
 
@@ -50,21 +50,21 @@ impl Rgb {
 #[derive(Debug, Clone, Copy)]
 pub struct Luma(pub f32);
 
-impl<S: colorspace::Colorspace> Into<Luma> for Color<S> {
-    fn into(self) -> Luma {
-        Luma(self.convert::<colorspace::CIE_XYZ>().0[1])
+impl<S: colorspace::Colorspace> From<Color<S>> for Luma {
+    fn from(val: Color<S>) -> Self {
+        Luma(val.convert::<colorspace::CIE_XYZ>().0[1])
     }
 }
 
-impl Into<image::Rgb<f32>> for sRgb {
-    fn into(self) -> image::Rgb<f32> {
-        image::Rgb(self.to_array())
+impl From<sRgb> for image::Rgb<f32> {
+    fn from(val: sRgb) -> Self {
+        image::Rgb(val.to_array())
     }
 }
 
-impl Into<image::Luma<f32>> for Luma {
-    fn into(self) -> image::Luma<f32> {
-        image::Luma([self.0])
+impl From<Luma> for image::Luma<f32> {
+    fn from(val: Luma) -> Self {
+        image::Luma([val.0])
     }
 }
 

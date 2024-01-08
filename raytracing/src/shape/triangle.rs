@@ -7,8 +7,8 @@ use crate::{
 };
 
 use super::{
-    local_info, shape::RayIntersection, FullIntersectionResult, IntersectionResult,
-    MinIntersectionResult, Shape,
+    local_info, FullIntersectionResult, IntersectionResult, MinIntersectionResult, RayIntersection,
+    Shape,
 };
 
 /// Describes the winding of a triangle.
@@ -63,17 +63,16 @@ enum MollerTrumboreResult {
 
 impl MollerTrumboreResult {
     fn moller_trumbore(vertices: [Point; 3], ray: Ray) -> Self {
-        #[allow(non_snake_case)]
-        let M = glam::mat3(
+        let m = glam::mat3(
             vertices[2] - vertices[0],
             vertices[2] - vertices[1],
             ray.direction,
         );
 
-        if M.determinant() == 0.0 {
+        if m.determinant() == 0.0 {
             MollerTrumboreResult::NoResult
         } else {
-            let [u, v, t] = M.inverse().mul_vec3(vertices[2] - ray.origin).to_array();
+            let [u, v, t] = m.inverse().mul_vec3(vertices[2] - ray.origin).to_array();
             MollerTrumboreResult::Result { u, v, t }
         }
     }

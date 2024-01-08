@@ -60,7 +60,7 @@ impl TevStreaming {
 
             // Wait for exe to be up
             // May not work
-            std::thread::sleep(std::time::Duration::from_millis(500));
+            std::thread::sleep(std::time::Duration::from_secs(2));
             Ok(())
         };
         let try_connect = || -> Result<TevClient> {

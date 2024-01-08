@@ -4,8 +4,8 @@ use crate::{color::Rgb, material::{Gooch, texture, Emit}, math::point::Point, sc
 
 pub struct DebugScene;
 
-impl Into<Scene> for DebugScene {
-    fn into(self) -> Scene {
+impl From<DebugScene> for Scene {
+    fn from(_: DebugScene) -> Self {
         let mut scene = Scene::new(Emit {
             texture: Box::new(texture::Uniform(Rgb::from_array([0.3, 0.3, 0.3]))),
         });

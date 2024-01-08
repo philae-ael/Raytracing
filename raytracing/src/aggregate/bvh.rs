@@ -74,7 +74,7 @@ impl BVH {
 
 impl Shape for BVH {
     fn intersection_full(&self, ray: Ray) -> FullIntersectionResult {
-        if let Some(_) = self.bounding_box.ray_intersect(&ray) {
+        if self.bounding_box.ray_intersect(&ray).is_some() {
             match &self.node {
                 BVHNode::Node(a, b) => {
                     if let IntersectionResult::Intersection(record) = a.intersection_full(ray) {

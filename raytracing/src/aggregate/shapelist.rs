@@ -49,7 +49,7 @@ impl Shape for ShapeList {
         self.0
             .iter()
             .map(|x| x.as_shape().bounding_box())
-            .reduce(|x, y| Bounds::from_bounds(x, y))
+            .reduce(Bounds::from_bounds)
             .expect("Expected at least one shape")
     }
 }

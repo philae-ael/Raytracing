@@ -1,4 +1,5 @@
 use std::{
+    io::Write,
     sync::{
         mpsc::{channel, Receiver, Sender},
         Arc,
@@ -13,8 +14,7 @@ use image::{ImageBuffer, Rgb32FImage};
 use rand::{distributions, seq::SliceRandom};
 use rand::{prelude::Distribution, thread_rng};
 use rayon::prelude::{
-    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator,
-    ParallelIterator,
+    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 use raytracing::{
     camera::{Camera, PixelCoord, ViewportCoord},
@@ -96,7 +96,7 @@ impl Renderer {
         );
 
         Self {
-            dimension: tile_create_info.dimension.clone(),
+            dimension: tile_create_info.dimension,
             samples_per_pixel: tile_create_info.spp,
             tile_size: tile_create_info.tile_size,
             shuffle_tiles: tile_create_info.shuffle_tiles,
@@ -107,7 +107,7 @@ impl Renderer {
         }
     }
 
-    pub fn run<F: FnMut(Arc<TileMsg>) -> () + Send>(
+    pub fn run<F: FnMut(Arc<TileMsg>) + Send>(
         self,
         on_tile_rendered: F,
     ) -> anyhow::Result<OutputBuffers> {
@@ -192,22 +192,21 @@ impl Renderer {
                     }
 
                     if last_progress_update.elapsed() >= std::time::Duration::from_millis(300) {
-                       progress.print();
-                       last_progress_update = std::time::Instant::now();
+                        print!("\r{progress}");
+                        let _ = std::io::stdout().flush();
+                        last_progress_update = std::time::Instant::now();
                     }
                 }
-                progress.print();
+                println!("\r{progress}");
             });
 
-            // Product Tiles indices
-            let mut v = (0..tile_count_x)
+            let mut tiles_indices = (0..tile_count_x)
                 .cartesian_product(0..tile_count_y)
-                .into_iter()
                 .collect::<Vec<_>>();
 
             // reorder them if needed
             if self.shuffle_tiles {
-                v.shuffle(&mut thread_rng());
+                tiles_indices.shuffle(&mut thread_rng());
             }
 
             let process_sample_batch =
@@ -215,7 +214,7 @@ impl Renderer {
                  ((tile_x, tile_y), data): ((u32, u32), &mut Option<Vec<RaySeries>>)|
                  -> Result<()> {
                     self.tile_worker((tile_x, tile_y), data, *sample_count);
-                    progress.inc();
+                    progress.add(*sample_count as usize);
 
                     // Broadcast results to the thread which is in charge
                     tx.send(Message::Tile(Arc::new(TileMsg {
@@ -236,17 +235,23 @@ impl Renderer {
             // Dispatch work
             match self.samples_per_pixel {
                 Spp::Spp(s) => {
-                    for sample_batch in 0..=s / samples_per_batch {
-                        let sample_count = s - sample_batch * s / samples_per_batch;
-                        v.par_iter()
+                    let mut samples_to_do = s;
+                    while samples_to_do > 0 {
+                        // Samples for this iteration
+                        let samples = u32::min(samples_per_batch, samples_to_do);
+                        samples_to_do -= samples;
+
+                        tiles_indices
+                            .par_iter()
                             .copied()
                             .zip(tiles_data.par_iter_mut())
-                            .try_for_each_with((tx.clone(), sample_count), process_sample_batch)?;
+                            .try_for_each_with((tx.clone(), samples), process_sample_batch)?;
                     }
                 }
                 Spp::Inf => {
                     for _sample_batch in 0.. {
-                        v.par_iter()
+                        tiles_indices
+                            .par_iter()
                             .copied()
                             .zip(tiles_data.par_iter_mut())
                             .try_for_each_with(
@@ -286,15 +291,18 @@ impl Renderer {
             tile
         } else {
             let mut tile_data = Vec::new();
-            tile_data.resize_with(tile_width * tile_height, || RaySeries::default());
+            tile_data.resize_with(tile_width * tile_height, RaySeries::default);
             *data = Some(tile_data);
             data.as_mut().unwrap()
         };
 
-        for (j, y) in y_range.clone().enumerate() {
+        for (j, y) in y_range.enumerate() {
             for (i, x) in x_range.clone().enumerate() {
-                let index = j * tile_width as usize + i;
-                tile_data[index].merge(self.pixel_worker(PixelCoord { x, y }, sample_count));
+                let index = j * tile_width + i;
+                tile_data[index] = RaySeries::merge(
+                    std::mem::take(&mut tile_data[index]),
+                    self.pixel_worker(PixelCoord { x, y }, sample_count),
+                );
             }
         }
 
@@ -320,7 +328,7 @@ impl Renderer {
             ray_series.add_sample(self.integrator.ray_cast(&self.world, camera_ray, 0));
 
             if let Some(allowed_error) = self.allowed_error {
-                if let Some(_) = ray_series.color.is_precise_enough(allowed_error) {
+                if ray_series.color.is_precise_enough(allowed_error).is_some() {
                     counter!("Adaptative sampling break");
                     break;
                 }

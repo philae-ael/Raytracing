@@ -95,7 +95,7 @@ impl SDL2Streaming {
                             .collect();
 
                         let data = bytemuck::cast_slice(data.as_slice());
-                        text.update(rect, &data, 3 * tile_width as usize).unwrap();
+                        text.update(rect, data, 3 * tile_width as usize).unwrap();
                     }
                     Message::Done => canvas.window_mut().raise(),
                 }

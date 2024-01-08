@@ -69,8 +69,8 @@ pub fn timed_scope_accumulate_<R, F: FnOnce() -> R>(timer: &CounterTime, f: F) -
 macro_rules! timed_scope_accumulate {
     ($descr:literal, $($arg: tt)+) => {
         if cfg!(feature = "counter_time") {
-            use crate::utils::counter::{Counter, CounterTime, insert_counter};
-            use crate::utils::timer::timed_scope_accumulate_;
+            use $crate::utils::counter::{Counter, CounterTime, insert_counter};
+            use $crate::utils::timer::timed_scope_accumulate_;
             lazy_static::lazy_static! {
                 static ref COUNTER_REF: std::sync::Arc<Counter> = {
                     insert_counter($descr, Counter::CounterTime(CounterTime::new()))
@@ -82,6 +82,7 @@ macro_rules! timed_scope_accumulate {
                 panic!("WTF")
             }
         } else {
+            #[allow(clippy::redundant_closure_call)]
             ($($arg)+) ()
         }
     };

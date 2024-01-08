@@ -30,7 +30,12 @@ impl GUIRenderer {
 
         let progress = progress::Progress::new((width * height) as usize);
         rayon::scope(|s| {
-            let renderer: Renderer = DefaultRenderer { width, height }.into();
+            let renderer: Renderer = DefaultRenderer {
+                width,
+                height,
+                spp: 20,
+            }
+            .into();
 
             log::info!("Generating image...");
             s.spawn(|_| loop {

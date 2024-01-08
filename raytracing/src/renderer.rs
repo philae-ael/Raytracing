@@ -7,7 +7,7 @@ use crate::{
     aggregate::shapelist::ShapeList,
     camera::Camera,
     color,
-    material::{MaterialDescriptor, MaterialId},
+    material::{texture::Uniform, Emit, MaterialDescriptor, MaterialId},
     math::{
         distributions::sphere_uv_from_direction,
         quaternion::LookAt,
@@ -214,7 +214,7 @@ impl Renderer {
             } else {
                 (color::WHITE, 0.0)
             };
-            
+
             let color = (color.vec() * scattered.albedo.vec()).rgb();
 
             RayResult {
@@ -225,7 +225,7 @@ impl Renderer {
                 ray_depth: ray_depth + 1.0,
             }
         } else {
-            // Sky 
+            // Sky
             let material = &self.materials[self.options.world_material.0].material;
             let record = local_info::Full {
                 pos: ray.origin,
@@ -275,6 +275,7 @@ impl Renderer {
 pub struct DefaultRenderer {
     pub width: u32,
     pub height: u32,
+    pub spp: u32,
 }
 
 impl Into<Renderer> for DefaultRenderer {
@@ -296,17 +297,23 @@ impl Into<Renderer> for DefaultRenderer {
             0.0,
         );
 
-        let scene: Scene = DefaultScene.into();
+        let mut scene: Scene = DefaultScene.into();
+        let sky_mat = scene.insert_material(MaterialDescriptor {
+            label: Some("Sky".to_owned()),
+            material: Box::new(Emit {
+                texture: Box::new(Uniform(Rgb([0.2, 0.2, 0.2]))),
+            }),
+        });
 
         Renderer {
             camera,
             objects: scene.objects,
             materials: scene.materials,
             options: RendererOptions {
-                samples_per_pixel: 200,
+                samples_per_pixel: self.spp,
                 diffuse_depth: 20,
                 gamma: 1.0,
-                world_material: MaterialId(1),
+                world_material: sky_mat,
             },
         }
     }

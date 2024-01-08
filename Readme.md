@@ -1,30 +1,36 @@
-# The famous Raytracing in a Week~~end~~ Book
+# Raytracing
+There is a lot from the series of books: Raytracing in a weekend/in a week/for the rest of your life
 
 
-|              Current result               |               Normals               |
-| :---------------------------------------: | :---------------------------------: |
-| ![Current result](./output/ldr/color.jpg) | ![Normals](./output/ldr/normal.jpg) |
+## Dragon
+Renderered in 1.5secs, 5samples per pixel
+|              Current result               |               Normals               |               Albedo               |
+| :---------------------------------------: | :---------------------------------: | :--------------------------------: |
+| ![Current result](./output/dragon5/color.jpg) | ![Normals](./output/dragon5/normal.jpg) | ![Albedo](./output/dragon5/albedo.jpg) |
 
-|               Albedo               |              Depth               |
-| :--------------------------------: | :------------------------------: |
-| ![Albedo](./output/ldr/albedo.jpg) | ![Depth](./output/ldr/depth.jpg) |
+Renderered in 6.5secs, 20samples per pixel
+|              Current result               |               Normals               |               Albedo               |
+| :---------------------------------------: | :---------------------------------: | :--------------------------------: |
+| ![Current result](./output/dragon20/color.jpg) | ![Normals](./output/dragon20/normal.jpg) | ![Albedo](./output/dragon20/albedo.jpg) |
+
+Renderered in 33secs, 100samples per pixel
+|              Current result               |               Normals               |               Albedo               |
+| :---------------------------------------: | :---------------------------------: | :--------------------------------: |
+| ![Current result](./output/dragon100/color.jpg) | ![Normals](./output/dragon100/normal.jpg) | ![Albedo](./output/dragon100/albedo.jpg) |
 
 
-## Description of all modules
+## Cornell-box
+Renderered in 0.9secs, 5samples per pixel
+|              Current result               |               Normals               |               Albedo               |
+| :---------------------------------------: | :---------------------------------: | :--------------------------------: |
+| ![Current result](./output/cornell5/color.jpg) | ![Normals](./output/cornell5/normal.jpg) | ![Albedo](./output/cornell5/albedo.jpg) |
 
-### [`Raytracing`](./raytracing/)
-The core of the application. It is the part of the code responsible for the raytracing 
+Renderered in 3.5secs, 20samples per pixel
+|              Current result               |               Normals               |               Albedo               |
+| :---------------------------------------: | :---------------------------------: | :--------------------------------: |
+| ![Current result](./output/cornell20/color.jpg) | ![Normals](./output/cornell20/normal.jpg) | ![Albedo](./output/cornell20/albedo.jpg) |
 
-### [`simple-runner`](./simple-runner/)
-A binary that allows to output the result of as `exr` for HDR and `jpg` for LDR.
-The output is in the `output/` directory
-
-### [`tev-client`](./tev-client/)
-Use [tev](https://github.com/Tom94/tev) as a live previewer.
-Download `tev` and run it then run this binary crate.
-
-### [`viewer`](./viewer/)
-An ugly try of an implementation of a basic viewer using Vulkan.
-
-# Documentation 
-For some documentation, see the [doc](./doc/build/rendering.pdf) pdf.
+Renderered in 19.5secs, 100samples per pixel
+|              Current result               |               Normals               |               Albedo               |
+| :---------------------------------------: | :---------------------------------: | :--------------------------------: |
+| ![Current result](./output/cornell100/color.jpg) | ![Normals](./output/cornell100/normal.jpg) | ![Albedo](./output/cornell100/albedo.jpg) |

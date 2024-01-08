@@ -17,7 +17,7 @@ impl Ray {
             _marker: Default::default()
         }
     }
-    pub fn at(&self, t: f64) -> Vec3 {
+    pub fn at(&self, t: f32) -> Vec3 {
         self.origin + t * self.direction
     }
 }

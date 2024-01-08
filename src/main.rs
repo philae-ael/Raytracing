@@ -15,8 +15,7 @@ use crate::{
     camera::Camera,
     hit::HittableList,
     material::{texture, Dielectric, Diffuse, Emit, MaterialDescriptor, MaterialId, Metal},
-    math::quaternion::Quaternion,
-    renderer::{OutputBuffers, Renderer},
+    renderer::{OutputBuffers, Renderer}, math::quaternion::LookAt,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -105,16 +104,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     ]);
 
-    let look_at = Vec3([0.0, 0.0, -1.0]);
-    let look_from = Vec3([0.0, 0.0, 0.0]);
+    let look_at = Vec3::NEG_Z;
+    let look_from = Vec3::ZERO;
     let look_direction = look_at - look_from;
     let camera = Camera::new(
         width,
         height,
-        f64::to_radians(90.),
+        f32::to_radians(90.),
         look_direction.length(),
         look_from,
-        Quaternion::from_direction(&look_direction, &-Vec3::Z),
+        LookAt {
+            direction: look_direction,
+            forward: Vec3::NEG_Z,
+        }
+        .into(),
         0.0,
     );
     let renderer = Renderer {

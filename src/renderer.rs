@@ -1,5 +1,6 @@
-use image::Rgb;
+use image::{buffer::EnumeratePixelsMut, Luma, Rgb, Rgb32FImage};
 use rand::distributions::Distribution;
+use rayon::prelude::{ParallelBridge, ParallelIterator};
 
 use crate::{
     camera::Camera,
@@ -7,6 +8,7 @@ use crate::{
     hit::{Hit, HitRecord, Hittable, HittableList},
     material::{MaterialDescriptor, MaterialId},
     math::vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
+    progress,
     ray::Ray,
 };
 
@@ -34,10 +36,73 @@ struct RayResult {
 
 pub struct RenderResult {
     pub normal: Rgb<f64>,
-    pub ddepth: Rgb<f64>,
     pub albedo: Rgb<f64>,
     pub color: Rgb<f64>,
     pub depth: f64,
+}
+
+pub struct OutputBuffers {
+    pub color: Rgb32FImage,
+    pub normal: Rgb32FImage,
+    pub albedo: Rgb32FImage,
+    pub depth: image::ImageBuffer<Luma<f32>, Vec<f32>>,
+}
+
+impl OutputBuffers {
+    fn iter(&'_ mut self) -> OutputBuffersIterator<'_, f32> {
+        OutputBuffersIterator {
+            color: self.color.enumerate_pixels_mut(),
+            normal: self.normal.enumerate_pixels_mut(),
+            albedo: self.albedo.enumerate_pixels_mut(),
+            depth: self.depth.enumerate_pixels_mut(),
+        }
+    }
+}
+
+struct OutputBuffersIterator<'a, T>
+where
+    Rgb<T>: image::Pixel,
+    Luma<T>: image::Pixel,
+{
+    color: EnumeratePixelsMut<'a, Rgb<T>>,
+    normal: EnumeratePixelsMut<'a, Rgb<T>>,
+    albedo: EnumeratePixelsMut<'a, Rgb<T>>,
+    depth: EnumeratePixelsMut<'a, Luma<T>>,
+}
+struct OutputBufferProxy<'a, T>
+where
+    Rgb<T>: image::Pixel,
+    Luma<T>: image::Pixel,
+{
+    pub x: u32,
+    pub y: u32,
+    color: &'a mut Rgb<T>,
+    normal: &'a mut Rgb<T>,
+    albedo: &'a mut Rgb<T>,
+    depth: &'a mut Luma<T>,
+}
+
+impl<'a, T> Iterator for OutputBuffersIterator<'a, T>
+where
+    Rgb<T>: image::Pixel,
+    Luma<T>: image::Pixel,
+{
+    type Item = OutputBufferProxy<'a, T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (x, y, normal) = self.normal.next()?;
+        let albedo = self.albedo.next()?.2;
+        let color = self.color.next()?.2;
+        let depth = self.depth.next()?.2;
+        Some(OutputBufferProxy {
+            x,
+            y,
+            normal,
+            albedo,
+            color,
+            depth,
+        })
+    }
 }
 
 impl Renderer {
@@ -48,29 +113,22 @@ impl Renderer {
         let distribution_y = rand::distributions::Uniform::new(0., pixel_height);
 
         let mut rng = rand::thread_rng();
-        let mut max_t = 0.0;
-        let mut min_t = 1e100;
         let ray_results = {
             let ray_results_acc = (0..self.options.samples_per_pixel)
                 .map(|_| {
                     let dvx = distribution_x.sample(&mut rng);
                     let dvy = distribution_y.sample(&mut rng);
-                    let ray_result = self.throw_ray(
+                    self.throw_ray(
                         &self.camera.ray(vx + dvx, vy + dvy, &mut rng),
                         self.options.diffuse_depth,
-                    );
-
-                    max_t = f64::max(max_t, ray_result.depth);
-                    min_t = f64::min(min_t, ray_result.depth);
-
-                    ray_result
+                    )
                 })
                 .fold(
                     // Accumulate pixels
                     RayResult {
                         normal: Vec3::ZERO,
                         color: color::BLACK,
-                        depth: f64::INFINITY,
+                        depth: 0.0,
                         albedo: color::BLACK,
                     },
                     |RayResult {
@@ -102,17 +160,11 @@ impl Renderer {
             }
         };
 
-        if max_t == f64::INFINITY {
-            max_t = 0.0;
-            min_t = 0.0
-        }
-        let ddepth = Vec3([min_t, max_t, 0.0]).rgb();
         // Gamma correct
         let color = Rgb(ray_results.color.0.map(|x| x.powf(1. / self.options.gamma)));
 
         RenderResult {
-            normal: ray_results.normal.rgb(),
-            ddepth,
+            normal: (0.5*(1.0*Vec3::ONES + ray_results.normal)).rgb(),
             color,
             albedo: ray_results.albedo,
             depth: ray_results.depth,
@@ -124,7 +176,7 @@ impl Renderer {
             return RayResult {
                 normal: Vec3::ZERO,
                 color: color::BLACK,
-                depth: f64::INFINITY,
+                depth: -1.0,
                 albedo: color::BLACK,
             };
         }
@@ -149,7 +201,7 @@ impl Renderer {
         } else {
             let material = &self.materials[self.options.world_material.0].material;
             let record = HitRecord {
-                t: f64::INFINITY,
+                t: 0.0,
                 hit_point: ray.origin,
                 normal: -ray.direction,
                 material: self.options.world_material,
@@ -158,9 +210,36 @@ impl Renderer {
             RayResult {
                 normal: Vec3::ZERO,
                 color: scattered.albedo,
-                depth: f64::INFINITY,
+                depth: 0.0,
                 albedo: color::BLACK,
             }
         }
+    }
+
+    pub fn run_scene(&self, output_buffer: &mut OutputBuffers) {
+        let progress = progress::Progress::new((self.camera.width * self.camera.height) as usize);
+
+        log::info!("Generating image...");
+        rayon::scope(|s| {
+            s.spawn(|_| {
+                while !progress.done() {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    progress.print();
+                }
+                println!();
+            });
+
+            output_buffer.iter().par_bridge().for_each(|p| {
+                // pixels in the image crate are from left to right, top to bottom
+                let vx = 2. * (p.x as f64 / (self.camera.width - 1) as f64) - 1.;
+                let vy = 1. - 2. * (p.y as f64 / (self.camera.height - 1) as f64);
+                let render_result = self.process_pixel(vx, vy);
+                *p.color = color::convert_lossy(render_result.color);
+                *p.normal = color::convert_lossy(render_result.normal);
+                *p.albedo = color::convert_lossy(render_result.albedo);
+                *p.depth = Luma([render_result.depth as f32]);
+                progress.inc();
+            });
+        });
     }
 }

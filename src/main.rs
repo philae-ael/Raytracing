@@ -8,7 +8,7 @@ pub mod ray;
 pub mod renderer;
 
 use hit::Sphere;
-use image::{ImageBuffer, Rgb, Rgb32FImage};
+use image::{buffer::ConvertBuffer, ImageBuffer, Luma, Rgb, Rgb32FImage};
 use math::vec::Vec3;
 
 use rayon::iter::{ParallelBridge, ParallelIterator};
@@ -16,20 +16,13 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use crate::{
     camera::Camera,
     hit::HittableList,
-    material::{Diffuse, Emit, MaterialDescriptor, MaterialId, Metal},
+    material::{Dielectric, Diffuse, Emit, MaterialDescriptor, MaterialId, Metal},
     math::{quaternion::Quaternion, utils::*},
-    renderer::Renderer,
+    renderer::{OutputBuffers, Renderer},
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-
-    let out_file = "out.jpg";
-    let out_file_old = "out_old.jpg";
-
-    // Ignore failure, we don't care if it doesn't work
-    let _ = std::fs::remove_file(out_file_old);
-    let _ = std::fs::rename(out_file, out_file_old);
 
     log::info!("Initialization");
     // Image
@@ -39,8 +32,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let materials: Vec<MaterialDescriptor> = vec![
         MaterialDescriptor {
             label: Some("Uniform Gray".to_string()),
-            material: Box::new(Diffuse {
+            material: Box::new(Dielectric {
                 albedo: Rgb([0.7, 0.3, 0.3]),
+                ior: 1.3,
+                invert_normal: false,
             }),
         },
         MaterialDescriptor {
@@ -111,66 +106,55 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ]);
 
     let look_at = Vec3([0.0, 0.0, -1.0]);
-    let look_from = Vec3([3.0, 3.0, 2.0]);
+    let look_from = Vec3([0.0, 0.0, 0.0]);
     let look_direction = look_at - look_from;
     let camera = Camera::new(
         width,
         height,
-        f64::to_radians(40.),
+        f64::to_radians(90.),
         look_direction.length(),
         look_from,
         Quaternion::from_direction(&look_direction, &-Vec3::Z),
-        1.0,
+        0.0,
     );
     let renderer = Renderer {
         camera,
         scene,
         materials,
         options: renderer::RendererOptions {
-            samples_per_pixel: 500,
+            samples_per_pixel: 8,
             diffuse_depth: 20,
             gamma: 2.2,
             world_material: MaterialId(5),
         },
     };
 
-    let mut im: Rgb32FImage = ImageBuffer::new(width, height);
-    let progress = progress::Progress::new((width * height) as usize);
+    let mut output_buffers = OutputBuffers {
+        normal: ImageBuffer::new(width, height),
+        color: ImageBuffer::new(width, height),
+        albedo: ImageBuffer::new(width, height),
+        depth: ImageBuffer::new(width, height),
+    };
 
-    log::info!("Generating image...");
-    rayon::scope(|s| {
-        s.spawn(|_| {
-            while !progress.done() {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-                progress.print();
-            }
-            println!();
-        });
+    renderer.run_scene(&mut output_buffers);
 
-        im.enumerate_pixels_mut()
-            .par_bridge()
-            .for_each(|(x, y, p)| {
-                // pixels in the image crate are from left to right, top to bottom
-                let vx = 2. * (x as f64 / (width - 1) as f64) - 1.;
-                let vy = 1. - 2. * (y as f64 / (height - 1) as f64);
-                let render_result = renderer.process_pixel(vx, vy);
-                *p = color::convert_lossy(render_result.color);
-                progress.inc();
-            });
-    });
+    std::fs::create_dir_all("output/ldr")?;
+    std::fs::create_dir_all("output/hdr")?;
 
-    log::info!("Saving HDR image...");
-    im.save("out.exr")?;
+    let depth = ConvertBuffer::<ImageBuffer<Rgb<f32>, Vec<f32>>>::convert(&output_buffers.depth);
+    log::info!("Saving HDR images...");
+    output_buffers.color.save("output/hdr/color.exr")?;
+    output_buffers.normal.save("output/hdr/normal.exr")?;
+    output_buffers.albedo.save("output/hdr/albedo.exr")?;
+    depth.save("output/hdr/depth.exr")?;
 
-    let ldr: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_vec(
-        width,
-        height,
-        im.pixels()
-            .flat_map(|p| p.0.map(|x| ((u8::MAX as f64) * clamp(x as f64)) as u8))
-            .collect(),
-    )
-    .unwrap();
-    log::info!("Saving LDR image...");
-    ldr.save(out_file)?;
+    log::info!("Saving LDR images...");
+    ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(&output_buffers.color)
+        .save("output/ldr/color.jpg")?;
+    ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(&output_buffers.normal)
+        .save("output/ldr/normal.jpg")?;
+    ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(&output_buffers.albedo)
+        .save("output/ldr/albedo.jpg")?;
+    ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(&depth).save("output/ldr/depth.jpg")?;
     Ok(())
 }

@@ -1,3 +1,4 @@
 /target
-*.exr
+output/hdr
 out_old.*
+HDRI

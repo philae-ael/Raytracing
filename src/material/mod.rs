@@ -111,7 +111,7 @@ impl Material for Metal {
 }
 
 pub struct Dielectric {
-    pub color: Rgb<f64>,
+    pub albedo: Rgb<f64>,
     pub ior: f64,
     pub invert_normal: bool,
 }
@@ -139,7 +139,8 @@ impl Material for Dielectric {
         let cos_theta = -ray.direction.dot(&normal);
         let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
 
-        let cannot_refract = ior * sin_theta > 0.0;
+        let cannot_refract =
+            ior * sin_theta > 0.0 || reflectance(cos_theta, ior) > uniform.sample(rng);
         let ray_out = if cannot_refract {
             Ray::new(record.hit_point, ray.direction.reflect(&normal))
         } else {
@@ -149,7 +150,7 @@ impl Material for Dielectric {
 
         Scattered {
             ray_out: Some(ray_out),
-            albedo: self.color,
+            albedo: self.albedo,
         }
     }
 }

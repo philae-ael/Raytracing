@@ -1,6 +1,7 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use anyhow::Result;
+use raytracing::utils::{counter, timer::timed_scope};
 
 use crate::{
     output::{FileOutput, TevStreaming},
@@ -9,7 +10,7 @@ use crate::{
 };
 
 pub trait StreamingOutput: Send {
-    fn send_msg(&mut self, msg: &TileMsg) -> Result<()>;
+    fn send_msg(&mut self, msg: Arc<TileMsg>) -> Result<()>;
 }
 pub trait FinalOutput: Send {
     fn commit(&self, output_buffers: &OutputBuffers) -> Result<()>;
@@ -55,19 +56,21 @@ impl Cli {
     }
 
     pub fn run(mut self) -> Result<()> {
-        let output_buffers = self.tile_renderer.run(|msg| {
-            let mut outputs = Vec::new();
-            // Move tev_cli out of self, work with it and move it back in self
-            std::mem::swap(&mut self.streaming_outputs, &mut outputs);
+        let output_buffers = timed_scope("Run tile renderer", || {
+            self.tile_renderer.run(|msg| {
+                let mut outputs = Vec::new();
+                // Move tev_cli out of self, work with it and move it back in self
+                std::mem::swap(&mut self.streaming_outputs, &mut outputs);
 
-            for mut output in outputs.drain(..) {
-                match output.send_msg(&msg) {
-                    Ok(_) => self.streaming_outputs.push(output),
-                    Err(err) => {
-                        log::error!("{err}");
+                for mut output in outputs.drain(..) {
+                    match output.send_msg(msg.clone()) {
+                        Ok(_) => self.streaming_outputs.push(output),
+                        Err(err) => {
+                            log::error!("{err}");
+                        }
                     }
                 }
-            }
+            })
         })?;
 
         for final_output in self.final_outputs {
@@ -75,6 +78,7 @@ impl Cli {
         }
 
         log::info!("Done");
+        counter::report_counters();
         Ok(())
     }
 }

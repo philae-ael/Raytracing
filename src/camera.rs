@@ -14,16 +14,16 @@ impl Camera {
     pub fn new(
         width: u32,
         height: u32,
-        viewport_width: f64,
         viewport_height: f64,
         focal_length: f64,
         origin: Vec3,
     ) -> Self {
+        let aspect_ratio = width as f64 / height as f64;
         Self {
             width,
             height,
-            viewport_width,
             viewport_height,
+            viewport_width: viewport_height*aspect_ratio,
             focal_length,
             center: origin - focal_length * Vec3::Z,
             origin,

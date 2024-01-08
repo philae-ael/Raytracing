@@ -2,7 +2,7 @@
 
 use std::ops::{Add, Div, Index, IndexMut, Mul, Neg, Sub};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Vec3(pub [f64; 3]);
 
 pub type Normal = Vec3;
@@ -164,5 +164,12 @@ impl Neg for Vec3 {
 
     fn neg(self) -> Self::Output {
         Vec3::ZERO - self
+    }
+}
+
+
+impl From<f64> for Vec3 {
+    fn from(x: f64) -> Self {
+        Vec3([x, x, x])
     }
 }

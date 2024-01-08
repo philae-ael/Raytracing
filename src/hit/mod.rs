@@ -1,18 +1,20 @@
 use std::ops::Range;
 
 use crate::{
+    material::MaterialId,
     math::vec::{Normal, Point},
     ray::Ray,
 };
 
-pub struct BaseHitRecord {
+pub struct HitRecord {
     pub hit_point: Point,
     pub normal: Normal,
     pub t: f64,
+    pub material: MaterialId,
 }
 
-pub enum Hit<T = BaseHitRecord> {
-    Hit(T),
+pub enum Hit {
+    Hit(HitRecord),
     NoHit,
 }
 
@@ -21,8 +23,10 @@ pub trait Hittable: Send + Sync {
 }
 
 pub struct Sphere {
+    pub label: Option<String>,
     pub center: Point,
     pub radius: f64,
+    pub material: MaterialId,
 }
 
 impl Hittable for Sphere {
@@ -50,10 +54,11 @@ impl Hittable for Sphere {
             };
             let hit_point = ray.at(t);
             let normal = (hit_point - self.center).normalize();
-            let record = BaseHitRecord {
+            let record = HitRecord {
                 hit_point,
                 normal,
                 t,
+                material: self.material,
             };
             Hit::Hit(record)
         }

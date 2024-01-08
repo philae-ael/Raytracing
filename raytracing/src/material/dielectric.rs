@@ -1,6 +1,11 @@
+use glam::Vec3;
 use rand::distributions::{self, Distribution};
 
-use crate::{math::vec::RefrReflVecExt, ray::Ray, shape::local_info};
+use crate::{
+    math::vec::{RefrReflVecExt, RgbAsVec3Ext},
+    ray::Ray,
+    shape::local_info,
+};
 
 use super::{texture::Texture, Material, Scattered};
 
@@ -39,6 +44,7 @@ impl Material for Dielectric {
                 Some(x)
             }
         });
+
         let ray_out = if let Some(refracted) = refracted {
             Ray::new(record.pos, refracted)
         } else {
@@ -48,5 +54,17 @@ impl Material for Dielectric {
             ray_out: Some(ray_out),
             albedo: self.texture.color(record.uv),
         }
+    }
+
+    fn transmission(&self) -> Option<(f32, Vec3)> {
+        Some((self.ior, self.texture.color([0.0, 0.0]).vec()))
+    }
+
+    fn reflection(&self) -> Option<Vec3> {
+        None
+    }
+
+    fn diffuse(&self) -> Option<Vec3> {
+        Some(self.texture.color([0.0, 0.0]).vec())
     }
 }

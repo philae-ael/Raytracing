@@ -4,7 +4,7 @@ use rand::prelude::Distribution;
 use crate::{
     math::{
         distributions::{UnitBall3, UnitBall3PolarMethod},
-        vec::{Vec3AsNonZero, Vec3SameDirExt},
+        vec::{RgbAsVec3Ext, Vec3AsNonZero, Vec3SameDirExt},
     },
     ray::Ray,
     shape::local_info,
@@ -34,5 +34,9 @@ impl Material for Diffuse {
             ray_out: Some(Ray::new(record.pos, bounce_direction)),
             albedo: self.texture.color(record.uv),
         }
+    }
+
+    fn diffuse(&self) -> Option<Vec3> {
+        Some(self.texture.color([0.0, 0.0]).vec())
     }
 }

@@ -1,14 +1,14 @@
 mod cli;
 mod output;
-mod tile_renderer;
 pub mod progress;
+mod tile_renderer;
 
 use std::fmt::Display;
 
 use clap::{Parser, ValueEnum};
 use cli::Cli;
 use raytracing::scene::{
-    examples::{CornellBoxScene, StandfordBunnyScene},
+    examples::{CornellBoxScene, SpheresScene, StandfordBunnyScene},
     Scene,
 };
 
@@ -17,6 +17,7 @@ pub enum AvailableScene {
     Bunny,
     #[default]
     CornellBox,
+    Spheres,
 }
 
 impl Into<Scene> for AvailableScene {
@@ -24,6 +25,7 @@ impl Into<Scene> for AvailableScene {
         match self {
             AvailableScene::Bunny => StandfordBunnyScene.into(),
             AvailableScene::CornellBox => CornellBoxScene.into(),
+            AvailableScene::Spheres => SpheresScene.into(),
         }
     }
 }

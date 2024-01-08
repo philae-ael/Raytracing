@@ -1,3 +1,4 @@
+use glam::Vec3;
 use image::Rgb;
 
 use crate::{ray::Ray, shape::local_info};
@@ -9,6 +10,18 @@ pub trait Material {
         record: &local_info::Full,
         rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered;
+
+    fn transmission(&self) -> Option<(f32, Vec3)> {
+        None
+    }
+    fn reflection(&self) -> Option<Vec3> {
+        None
+    }
+
+    fn diffuse(&self) -> Option<Vec3> {
+        None
+    }
+
 }
 
 pub struct Scattered {

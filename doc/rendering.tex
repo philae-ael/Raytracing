@@ -7,10 +7,12 @@
 \usepackage{polyglossia}
 \setmainlanguage{english}
 
-\usepackage{biblatex}
+\usepackage[style=alphabetic]{biblatex}
 \addbibresource{references.bib}
 
 \usepackage{amsthm}
+\usepackage[f]{esvect}
+\usepackage{tikz}
 \usepackage{hyperref}
 
 \hypersetup{hidelinks}
@@ -36,9 +38,11 @@
 \label{ch:physics}
 \input{physics}
 
-\backmatter
+\chapter{Rendering techniques}
+\label{ch:Rendering_techniques}
+\input{whitted}
 
-\cite{haines_ray_nodate}
+\backmatter
 
 \printbibliography
 

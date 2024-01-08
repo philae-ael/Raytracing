@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{mpsc::Receiver, Arc};
 
 use bytemuck::{Pod, Zeroable};
 use image::{ImageBuffer, Rgba};
@@ -35,13 +35,23 @@ use crate::{
 use anyhow::{Context, Result};
 
 pub struct RaytracingPipeline {
-    vertex_buffer: Arc<CpuAccessibleBuffer<[Vertex]>>,
+    device: Arc<Device>,
+    queue: Arc<Queue>,
+
     pipeline: Arc<GraphicsPipeline>,
     set: Arc<PersistentDescriptorSet>,
+
+    vertex_buffer: Arc<CpuAccessibleBuffer<[Vertex]>>,
+
     image_buffer: Arc<CpuAccessibleBuffer<[f32]>>,
-    upload_command_buffer: Arc<PrimaryAutoCommandBuffer>,
-    gui_renderer: Option<GUIRenderer>,
-    channel: std::sync::mpsc::Receiver<crate::gui_renderer::PixelMsg>,
+    uploads_command_buffer: Arc<PrimaryAutoCommandBuffer>,
+
+    command_buffer_allocator: StandardCommandBufferAllocator,
+    descriptor_set_allocator: StandardDescriptorSetAllocator,
+
+    gui_renderer: GUIRenderer,
+    channel: Option<Receiver<PixelMsg>>,
+    size: [u32; 2],
 }
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Zeroable, Pod)]
@@ -50,78 +60,28 @@ struct Vertex {
 }
 impl_vertex!(Vertex, position);
 
-impl CustomPipeline for RaytracingPipeline {
-    fn setup(render_pass: Arc<RenderPass>, device: Arc<Device>, queue: Arc<Queue>) -> Result<Self> {
-        let vertices = [
-            Vertex {
-                position: [-1.0, 1.0],
-            },
-            Vertex {
-                position: [-1.0, -1.0],
-            },
-            Vertex {
-                position: [1.0, 1.0],
-            },
-            Vertex {
-                position: [1.0, -1.0],
-            },
-        ];
-
-        let vertex_buffer = CpuAccessibleBuffer::<[Vertex]>::from_iter(
-            device.clone(),
-            BufferUsage {
-                vertex_buffer: true,
-                ..BufferUsage::empty()
-            },
-            false,
-            vertices,
-        )?;
-        let vs = vs::load(device.clone()).unwrap();
-        let fs = fs::load(device.clone()).unwrap();
-
-        let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
-        let pipeline = GraphicsPipeline::start()
-            .vertex_input_state(BuffersDefinition::new().vertex::<Vertex>())
-            .vertex_shader(
-                vs.entry_point("main")
-                    .context("Did not find entry point in vertex shader")?,
-                (),
-            )
-            .input_assembly_state(
-                InputAssemblyState::new().topology(PrimitiveTopology::TriangleStrip),
-            )
-            .viewport_state(ViewportState::viewport_dynamic_scissor_irrelevant())
-            .fragment_shader(
-                fs.entry_point("main")
-                    .context("Did not find entry point in fragment shader")?,
-                (),
-            )
-            .color_blend_state(ColorBlendState::new(subpass.num_color_attachments()).blend_alpha())
-            .render_pass(subpass)
-            .build(device.clone())?;
-
-        // Image data
-        let sampler = Sampler::new(
-            device.clone(),
-            SamplerCreateInfo {
-                mag_filter: Filter::Linear,
-                min_filter: Filter::Linear,
-                address_mode: [SamplerAddressMode::Repeat; 3],
-                ..Default::default()
-            },
-        )?;
-
-        let descriptor_set_allocator = StandardDescriptorSetAllocator::new(device.clone());
-        let command_buffer_allocator = StandardCommandBufferAllocator::new(device.clone());
-
+impl RaytracingPipeline {
+    fn window_size_dependent_setup(
+        device: Arc<Device>,
+        queue: Arc<Queue>,
+        command_buffer_allocator: &StandardCommandBufferAllocator,
+        descriptor_set_allocator: &StandardDescriptorSetAllocator,
+        pipeline: Arc<GraphicsPipeline>,
+        width: u32,
+        height: u32,
+    ) -> Result<(
+        Arc<CpuAccessibleBuffer<[f32]>>,
+        PrimaryAutoCommandBuffer,
+        Arc<PersistentDescriptorSet>,
+        GUIRenderer,
+    )> {
         let mut uploads_image_from_cpu = AutoCommandBufferBuilder::primary(
-            &command_buffer_allocator,
+            command_buffer_allocator,
             queue.queue_family_index(),
             CommandBufferUsage::MultipleSubmit,
         )?;
 
         let (image_buffer, texture) = {
-            let (width, height) = (500, 500); // TODO: get viewport size
             let dimensions = ImageDimensions::Dim2d {
                 width,
                 height,
@@ -158,33 +118,155 @@ impl CustomPipeline for RaytracingPipeline {
             (image_cpu, ImageView::new_default(image_gpu)?)
         };
 
+        let sampler = Sampler::new(
+            device.clone(),
+            SamplerCreateInfo {
+                mag_filter: Filter::Linear,
+                min_filter: Filter::Linear,
+                address_mode: [SamplerAddressMode::Repeat; 3],
+                ..Default::default()
+            },
+        )?;
+
         let layout = pipeline.layout().set_layouts().get(0).unwrap();
         let set = PersistentDescriptorSet::new(
-            &descriptor_set_allocator,
+            descriptor_set_allocator,
             layout.clone(),
             [WriteDescriptorSet::image_view_sampler(0, texture, sampler)],
         )?;
+
+        Ok((
+            image_buffer,
+            uploads_image_from_cpu.build()?,
+            set,
+            GUIRenderer::new(width, height),
+        ))
+    }
+
+    fn run_renderer(&mut self) {
         let (tx, rx) = std::sync::mpsc::channel();
 
+        // Note: if prerun has already been run, then
+        self.channel = Some(rx);
+        let mut gui_renderer = self.gui_renderer;
+        std::thread::spawn(move || {
+            gui_renderer.run(tx);
+        });
+    }
+}
+
+impl CustomPipeline for RaytracingPipeline {
+    fn setup(
+        render_pass: Arc<RenderPass>,
+        device: Arc<Device>,
+        queue: Arc<Queue>,
+        dimensions: [u32; 2],
+    ) -> Result<Self> {
+        let [width, height] = dimensions;
+
+        let vertices = [
+            Vertex {
+                position: [-1.0, 1.0],
+            },
+            Vertex {
+                position: [-1.0, -1.0],
+            },
+            Vertex {
+                position: [1.0, 1.0],
+            },
+            Vertex {
+                position: [1.0, -1.0],
+            },
+        ];
+
+        let vertex_buffer = CpuAccessibleBuffer::<[Vertex]>::from_iter(
+            device.clone(),
+            BufferUsage {
+                vertex_buffer: true,
+                ..BufferUsage::empty()
+            },
+            false,
+            vertices,
+        )?;
+
+        let vs = vs::load(device.clone()).unwrap();
+        let fs = fs::load(device.clone()).unwrap();
+
+        let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
+        let pipeline = GraphicsPipeline::start()
+            .vertex_input_state(BuffersDefinition::new().vertex::<Vertex>())
+            .vertex_shader(
+                vs.entry_point("main")
+                    .context("Did not find entry point in vertex shader")?,
+                (),
+            )
+            .input_assembly_state(
+                InputAssemblyState::new().topology(PrimitiveTopology::TriangleStrip),
+            )
+            .viewport_state(ViewportState::viewport_dynamic_scissor_irrelevant())
+            .fragment_shader(
+                fs.entry_point("main")
+                    .context("Did not find entry point in fragment shader")?,
+                (),
+            )
+            .color_blend_state(ColorBlendState::new(subpass.num_color_attachments()).blend_alpha())
+            .render_pass(subpass)
+            .build(device.clone())?;
+
+        // Image data
+
+        let command_buffer_allocator = StandardCommandBufferAllocator::new(device.clone());
+        let descriptor_set_allocator = StandardDescriptorSetAllocator::new(device.clone());
+        let (image_buffer, uploads_command_buffer, set, gui_renderer) =
+            Self::window_size_dependent_setup(
+                device.clone(),
+                queue.clone(),
+                &command_buffer_allocator,
+                &descriptor_set_allocator,
+                pipeline.clone(),
+                width,
+                height,
+            )?;
+
         Ok(Self {
+            device,
+            queue,
             vertex_buffer,
             pipeline,
             set,
-            upload_command_buffer: Arc::new(uploads_image_from_cpu.build()?),
-            gui_renderer: Some(GUIRenderer::new(tx)),
-            channel: rx,
+            uploads_command_buffer: Arc::new(uploads_command_buffer),
+            gui_renderer,
             image_buffer,
+            command_buffer_allocator,
+            descriptor_set_allocator,
+            channel: None,
+            size: [width, height],
         })
     }
 
-    fn prerun(&mut self) {
-        let mut gui_renderer = self
-            .gui_renderer
-            .take()
-            .expect("prerun should not be run twice");
-        std::thread::spawn(move || {
-            gui_renderer.run();
-        });
+    fn on_resize(&mut self, dimensions: [u32; 2]) -> Result<()> {
+        let [width, height] = dimensions;
+
+        let (image_buffer, uploads_command_buffer, set, gui_renderer) =
+            Self::window_size_dependent_setup(
+                self.device.clone(),
+                self.queue.clone(),
+                &self.command_buffer_allocator,
+                &self.descriptor_set_allocator,
+                self.pipeline.clone(),
+                width,
+                height,
+            )?;
+        self.image_buffer = image_buffer;
+        self.uploads_command_buffer = Arc::new(uploads_command_buffer);
+        self.set = set;
+        self.size = dimensions;
+
+        self.gui_renderer = gui_renderer;
+        drop(self.channel.take());
+        self.run_renderer();
+
+        Ok(())
     }
 
     fn render(
@@ -208,18 +290,29 @@ impl CustomPipeline for RaytracingPipeline {
     }
 
     fn uploads(&mut self) -> Option<Arc<PrimaryAutoCommandBuffer>> {
+        let im = self.image_buffer.clone();
         let mut image_buffer: ImageBuffer<Rgba<f32>, _> = ImageBuffer::from_raw(
-            500,
-            500,
-            self.image_buffer.write().expect(
+            self.size[0],
+            self.size[1],
+            im.write().expect(
                 "This should never block? Who is using this buffer without my authorization?",
             ),
         )
-        .unwrap();
-        for PixelMsg { x, y, color } in self.channel.try_iter() {
+        .expect("Image buffer and image size dont correspond");
+
+        if self.channel.is_none() {
+            self.run_renderer();
+        }
+
+        for PixelMsg { x, y, color } in self
+            .channel
+            .as_mut()
+            .expect("This is unexepected? No renderer channel")
+            .try_iter()
+        {
             *image_buffer.get_pixel_mut(x, y) = color;
         }
-        Some(self.upload_command_buffer.clone())
+        Some(self.uploads_command_buffer.clone())
     }
 }
 

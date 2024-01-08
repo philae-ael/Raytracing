@@ -15,53 +15,64 @@ pub struct PixelMsg {
     pub color: Rgba<f32>,
 }
 
+#[derive(Clone, Copy)]
 pub struct GUIRenderer {
-    channel: Sender<PixelMsg>,
+    height: u32,
+    width: u32,
 }
 
 impl GUIRenderer {
-    pub fn new(channel: Sender<PixelMsg>) -> Self {
-        Self { channel }
+    pub fn new(width: u32, height: u32) -> Self {
+        Self { height, width }
     }
 
-    pub fn run(&mut self) {
-        let width = 500;
-        let height = 500;
+    pub fn run(&mut self, channel: Sender<PixelMsg>) {
+        let width = self.width;
+        let height = self.height;
 
         let progress = progress::Progress::new((width * height) as usize);
-        let channel = self.channel.clone();
         rayon::scope(|s| {
             let renderer: Renderer = DefaultRenderer { width, height }.into();
 
             log::info!("Generating image...");
-            s.spawn(|_| {
-                while !progress.done() {
-                    if progress.updated() {
-                        log::info!("{}", progress);
-                    }
+            s.spawn(|_| loop {
+                if progress.updated() {
+                    log::info!("{}", progress);
                     std::thread::sleep(std::time::Duration::from_millis(100));
+                } else if progress.done() {
+                    return;
                 }
             });
 
             let mut v = (0..width).cartesian_product(0..height).collect::<Vec<_>>();
             v.shuffle(&mut thread_rng());
 
-            v.into_iter()
-                .par_bridge()
-                .for_each_with(channel, |channel, (x, y)| {
+            // Note that this will stop whenever channel is closed (Aka. the receiver channel is closed)
+            let generation_result = v.into_iter().par_bridge().try_for_each_with(
+                channel,
+                |channel, (x, y)| -> anyhow::Result<()> {
                     // pixels in the image crate are from left to right, top to bottom
                     let vx = 2. * (x as f32 / (renderer.camera.width - 1) as f32) - 1.;
                     let vy = 1. - 2. * (y as f32 / (renderer.camera.height - 1) as f32);
                     let color = renderer.process_pixel(vx, vy).color;
-                    channel
-                        .send(PixelMsg {
-                            x,
-                            y,
-                            color: Rgba([color.0[0], color.0[1], color.0[2], 1.0]),
-                        })
-                        .unwrap();
+
+                    channel.send(PixelMsg {
+                        x,
+                        y,
+                        color: Rgba([color.0[0], color.0[1], color.0[2], 1.0]),
+                    })?;
                     progress.inc();
-                });
+                    Ok(())
+                },
+            );
+
+            match generation_result {
+                Ok(_) => log::info!("Image fully generated"),
+                Err(_) => log::info!("Image generation interrupted"),
+            };
+
+            // To prevent progress display thread to be locked forever
+            progress.set_done();
         });
     }
 }

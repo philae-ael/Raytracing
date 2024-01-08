@@ -24,7 +24,7 @@ use vulkano_win::VkSurfaceBuild;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder}
+    window::{Window, WindowBuilder},
 };
 
 use anyhow::{Context, Result};
@@ -33,7 +33,14 @@ pub trait CustomPipeline
 where
     Self: Sized,
 {
-    fn setup(render_pass: Arc<RenderPass>, device: Arc<Device>, queue: Arc<Queue>) -> Result<Self>;
+    fn setup(
+        render_pass: Arc<RenderPass>,
+        device: Arc<Device>,
+        queue: Arc<Queue>,
+        dimensions: [u32; 2],
+    ) -> Result<Self>;
+
+    fn on_resize(&mut self, dimensions: [u32; 2]) -> Result<()>;
 
     fn prerun(&mut self) {}
 
@@ -45,9 +52,7 @@ where
         >,
     ) -> Result<()>;
 
-    fn uploads(
-        &mut self,
-    ) -> Option<Arc<PrimaryAutoCommandBuffer>>;
+    fn uploads(&mut self) -> Option<Arc<PrimaryAutoCommandBuffer>>;
 }
 
 pub struct VulkanBasicRenderer<T: CustomPipeline + 'static> {
@@ -166,7 +171,13 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
             depth_range: 0.0..1.0,
         };
 
-        let app = T::setup(render_pass.clone(), device.clone(), queue.clone())?;
+        let app = T::setup(
+            render_pass.clone(),
+            device.clone(),
+            queue.clone(),
+            images[0].dimensions().width_height()
+        )?;
+
         let mut this = Self {
             event_loop: Some(event_loop),
             surface,
@@ -248,6 +259,7 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
         let dimensions = images[0].dimensions().width_height();
         self.viewport.dimensions = [dimensions[0] as f32, dimensions[1] as f32];
 
+
         self.framebuffers = images
             .iter()
             .map(|image| -> Result<_> {
@@ -261,6 +273,7 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
                 )?)
             })
             .collect::<Result<Vec<_>>>()?;
+        self.app.on_resize(dimensions)?;
         Ok(())
     }
 
@@ -283,6 +296,7 @@ impl<T: CustomPipeline> VulkanBasicRenderer<T> {
             self.swapchain = new_swapchain;
             self.window_size_dependent_setup(&new_images)?;
             self.recreate_swapchain = false;
+
         }
         let (image_index, suboptimal, acquire_future) =
             match acquire_next_image(self.swapchain.clone(), None) {

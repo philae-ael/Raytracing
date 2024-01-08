@@ -25,3 +25,6 @@ Download `tev` and run it then run this binary crate.
 
 ### [`viewer`](./viewer/)
 An ugly try of an implementation of a basic viewer using Vulkan.
+
+# Documentation 
+For some documentation, see the [doc](./Rendering.pdf) pdf.

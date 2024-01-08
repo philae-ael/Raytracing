@@ -43,7 +43,7 @@ impl ObjLoaderExt for Scene {
         let has_non_default_materials = if let Ok(materials) = materials {
             for material in materials {
                 let ke: Option<_> = material.unknown_param.get("Ke").and_then(|x| {
-                    x.split(" ")
+                    x.split(' ')
                         .map(|x| -> f32 { x.parse::<i32>().unwrap() as f32 })
                         .collect::<Vec<_>>()
                         .try_into()
@@ -109,6 +109,7 @@ impl ObjLoaderExt for Scene {
                 let indices = &indices_slice[0..3];
                 indices_slice = &indices_slice[3..];
 
+                #[allow(clippy::identity_op)]
                 let vertices = [
                     Point::new(
                         mesh.positions[(0 + indices[0] * 3) as usize],

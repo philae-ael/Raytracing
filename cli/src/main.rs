@@ -43,9 +43,9 @@ pub enum AvailableScene {
     Dragon,
 }
 
-impl Into<Scene> for AvailableScene {
-    fn into(self) -> Scene {
-        match self {
+impl From<AvailableScene> for Scene {
+    fn from(val: AvailableScene) -> Self {
+        match val {
             AvailableScene::Bunny => StandfordBunnyScene.into(),
             AvailableScene::CornellBox => CornellBoxScene.into(),
             AvailableScene::Spheres => SpheresScene.into(),
@@ -70,9 +70,9 @@ pub enum AvailableIntegrator {
     Whitted,
 }
 
-impl Into<Box<dyn Integrator>> for AvailableIntegrator {
-    fn into(self) -> Box<dyn Integrator> {
-        match self {
+impl From<AvailableIntegrator> for Box<dyn Integrator> {
+    fn from(val: AvailableIntegrator) -> Self {
+        match val {
             AvailableIntegrator::Basic => Box::new(BasicIntegrator { max_depth: 64 }),
             AvailableIntegrator::Whitted => Box::new(WhittedIntegrator { max_depth: 64 }),
         }
@@ -89,7 +89,7 @@ impl std::str::FromStr for Dimensions {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut split_it = s.split("x");
+        let mut split_it = s.split('x');
         let (Some(a), Some(b)) = (split_it.next(), split_it.next()) else {return Err(anyhow::anyhow!("Incorrect format, see help"));};
         let width: u32 = a.parse()?;
         let height: u32 = b.parse()?;

@@ -28,7 +28,7 @@ impl Material for Metal {
         let fuziness = self.roughness
             * Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
         let ray_direction = (ray_direction + fuziness)
-            .as_non_zero(0.01)
+            .into_non_zero(0.01)
             .unwrap_or(ray_direction);
 
         let ray_out = if ray_direction.dot(record.normal) > 0.0 {

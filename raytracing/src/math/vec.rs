@@ -64,12 +64,12 @@ impl Vec3SameDirExt for Vec3 {
 }
 
 pub trait Vec3AsNonZero: Sized {
-    fn as_non_zero(self, eps: f32) -> Option<Self>;
+    fn into_non_zero(self, eps: f32) -> Option<Self>;
 }
 
 impl Vec3AsNonZero for Vec3 {
-    fn as_non_zero(self, eps: f32) -> Option<Self> {
+    fn into_non_zero(self, eps: f32) -> Option<Self> {
         use super::float::FloatAsExt;
-        self.length_squared().as_non_zero(eps * eps).and(Some(self))
+        self.length_squared().into_non_zero(eps * eps).and(Some(self))
     }
 }

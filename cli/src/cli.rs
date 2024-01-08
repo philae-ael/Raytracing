@@ -39,7 +39,7 @@ impl Cli {
             streaming_outputs: Vec::new(),
             final_outputs: Vec::new(),
             renderer: Renderer::new(RendererCreateInfo {
-                dimension: args.dimensions.clone(),
+                dimension: args.dimensions,
                 spp: args.sample_per_pixel,
                 tile_size,
                 scene: args.scene.into(),

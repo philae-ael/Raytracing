@@ -75,24 +75,16 @@ impl RaySeries {
         self.ray_depth += ray_depth;
         self.samples_accumulated += samples_accumulated;
     }
-    pub fn merge(&mut self, rhs: Self) {
-        let Self {
-            normal,
-            position,
-            albedo,
-            color,
-            z,
-            ray_depth,
-            samples_accumulated,
-        } = rhs;
-
-        self.color.merge(&color);
-        self.normal += normal;
-        self.position = Point(self.position.vec() + position.vec());
-        self.albedo = (self.albedo.vec() + albedo.vec()).rgb();
-        self.z += z;
-        self.ray_depth += ray_depth;
-        self.samples_accumulated += samples_accumulated;
+    pub fn merge(lhs: Self, rhs: Self) -> Self {
+        Self {
+            normal: lhs.normal + rhs.normal,
+            position: Point(lhs.position.vec() + rhs.position.vec()),
+            albedo: (lhs.albedo.vec() + rhs.albedo.vec()).rgb(),
+            color: RgbSeries::merge(lhs.color, rhs.color),
+            z: lhs.z + rhs.z,
+            ray_depth: lhs.ray_depth + rhs.ray_depth,
+            samples_accumulated: lhs.samples_accumulated + rhs.samples_accumulated,
+        }
     }
 }
 
@@ -149,7 +141,7 @@ impl<RgbStorage, LumaStorage> GenericRenderResult<RgbStorage, LumaStorage> {
         GenericRenderResult {
             color: &self.color,
             normal: &self.normal,
-            position: &&self.position,
+            position: &self.position,
             albedo: &self.albedo,
             z: &self.z,
             ray_depth: &self.ray_depth,
@@ -180,12 +172,12 @@ impl<RgbStorage, LumaStorage> IntoIterator for GenericRenderResult<RgbStorage, L
 impl Clone for PixelRenderResult {
     fn clone(&self) -> Self {
         Self {
-            color: self.color.clone(),
-            position: self.position.clone(),
-            normal: self.normal.clone(),
-            albedo: self.albedo.clone(),
-            z: self.z.clone(),
-            ray_depth: self.ray_depth.clone(),
+            color: self.color,
+            position: self.position,
+            normal: self.normal,
+            albedo: self.albedo,
+            z: self.z,
+            ray_depth: self.ray_depth,
         }
     }
 }

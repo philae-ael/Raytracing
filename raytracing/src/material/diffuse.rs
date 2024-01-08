@@ -27,7 +27,7 @@ impl Material for Diffuse {
             Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
         let bounce_normal = -record.normal.same_direction(ray.direction);
         let bounce_direction = (bounce_normal + bounce_noise)
-            .as_non_zero(0.01)
+            .into_non_zero(0.01)
             .unwrap_or(bounce_normal);
 
         Scattered {

@@ -3,7 +3,7 @@ use crate::{
     math::vec::{RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
     renderer::{RayResult, Renderer},
-    shape::{IntersectionResult},
+    shape::IntersectionResult,
     timed_scope_accumulate,
 };
 

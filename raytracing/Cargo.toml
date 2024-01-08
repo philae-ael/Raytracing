@@ -16,9 +16,6 @@ rand = "0.8.5"
 rayon = "1.5.3"
 tobj = "3.2.3"
 
-[profile.release] 
-debug = true
-
 [features]
 default = ["debug_light"]
 # default = ["debug"]

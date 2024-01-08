@@ -5,6 +5,7 @@ pub trait Texture: Sync + Send {
     fn color(&self, uv: Uv) -> Rgb;
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Uniform(pub Rgb);
 
 impl Texture for Uniform {

@@ -2,7 +2,7 @@ use glam::Vec3;
 
 use crate::{
     color::Rgb,
-    material::{dielectric::Dielectric, texture, Diffuse, Emit, MaterialDescriptor, MixMaterial},
+    material::{texture, Dielectric, Diffuse, Emit, MixMaterial},
     math::{point::Point, vec::Vec3AsRgbExt},
     scene::Scene,
     shape::Sphere,
@@ -11,29 +11,32 @@ use crate::{
 pub struct SpheresScene;
 impl From<SpheresScene> for Scene {
     fn from(_: SpheresScene) -> Self {
-        let mut scene = Scene::default();
-        let diffuse = scene.insert_material(MaterialDescriptor {
-            label: None,
-            material: Box::new(Diffuse {
+        let mut scene = Scene::new(Emit {
+            texture: Box::new(texture::Uniform(Rgb::from_array([0.3, 0.3, 0.3]))),
+        });
+
+        let diffuse = scene.insert_material(
+            None,
+            Diffuse {
                 texture: Box::new(texture::Uniform(Rgb::from_array([0.2, 0.9, 0.7]))),
-            }),
-        });
-        let diffuse2 = scene.insert_material(MaterialDescriptor {
-            label: None,
-            material: Box::new(Diffuse {
+            },
+        );
+        let diffuse2 = scene.insert_material(
+            None,
+            Diffuse {
                 texture: Box::new(texture::Uniform(Rgb::from_array([0.2, 0.3, 0.7]))),
-            }),
-        });
-        let glass = scene.insert_material(MaterialDescriptor {
-            label: None,
-            material: Box::new(Dielectric {
+            },
+        );
+        let glass = scene.insert_material(
+            None,
+            Dielectric {
                 texture: Box::new(texture::Uniform(Rgb::from_array([1.0, 1.0, 1.0]))),
                 ior: 1.5,
-            }),
-        });
-        let light = scene.insert_material(MaterialDescriptor {
-            label: None,
-            material: Box::new(MixMaterial {
+            },
+        );
+        let light = scene.insert_material(
+            None,
+            MixMaterial {
                 p: 0.2,
                 mat1: Emit {
                     texture: Box::new(texture::Uniform(Vec3::splat(15.0).rgb())),
@@ -41,8 +44,8 @@ impl From<SpheresScene> for Scene {
                 mat2: Diffuse {
                     texture: Box::new(texture::Uniform(Rgb::from_array([0.4, 0.5, 0.3]))),
                 },
-            }),
-        });
+            },
+        );
 
         scene.insert_object(Sphere {
             center: Point::new(0.0, 0.2, -1.5),

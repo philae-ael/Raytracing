@@ -8,11 +8,13 @@ use crate::{
     hit::{Hit, HitRecord, Hittable, HittableList},
     material::{MaterialDescriptor, MaterialId},
     math::{
+        quaternion::LookAt,
         utils::sphere_uv_from_direction,
         vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
     },
     progress,
     ray::Ray,
+    scene::{DefaultScene, Scene},
 };
 
 pub struct RendererOptions {
@@ -23,7 +25,7 @@ pub struct RendererOptions {
 }
 pub struct Renderer {
     pub camera: Camera,
-    pub scene: HittableList,
+    pub objects: HittableList,
     pub options: RendererOptions,
 
     // TODO: make a pool of materials
@@ -185,7 +187,7 @@ impl Renderer {
         }
         let mut rng = rand::thread_rng();
 
-        if let Hit::Hit(record) = self.scene.hit(ray, 0.01..f32::INFINITY) {
+        if let Hit::Hit(record) = self.objects.hit(ray, 0.01..f32::INFINITY) {
             let material = &self.materials[record.material.0].material;
             let scattered = material.scatter(ray, &record, &mut rng);
 
@@ -245,5 +247,45 @@ impl Renderer {
                 progress.inc();
             });
         });
+    }
+}
+
+pub struct DefaultRenderer {
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Into<Renderer> for DefaultRenderer {
+    fn into(self) -> Renderer {
+        let look_at = Vec3::NEG_Z;
+        let look_from = Vec3::ZERO;
+        let look_direction = look_at - look_from;
+        let camera = Camera::new(
+            self.width,
+            self.height,
+            f32::to_radians(90.),
+            look_direction.length(),
+            look_from,
+            LookAt {
+                direction: look_direction,
+                forward: Vec3::NEG_Z,
+            }
+            .into(),
+            0.0,
+        );
+
+        let scene: Scene = DefaultScene.into();
+
+        Renderer {
+            camera,
+            objects: scene.objects,
+            materials: scene.materials,
+            options: RendererOptions {
+                samples_per_pixel: 8,
+                diffuse_depth: 20,
+                gamma: 2.2,
+                world_material: MaterialId(5),
+            },
+        }
     }
 }

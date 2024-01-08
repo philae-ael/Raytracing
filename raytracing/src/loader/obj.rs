@@ -56,7 +56,7 @@ impl ObjLoaderExt for Scene {
                         })
                 });
 
-                let scene_mat: Box<dyn Material + Sync> = if let Some(ke) = ke {
+                let scene_mat: Box<dyn Material + Sync + Send> = if let Some(ke) = ke {
                     Box::new(MixMaterial {
                         p: 0.5,
                         mat1: Diffuse {
@@ -96,7 +96,7 @@ impl ObjLoaderExt for Scene {
             let num_faces = mesh.indices.len() / 3;
             log::debug!("Loading model {}; {} faces", model.name, num_faces);
 
-            let mut triangles: Vec<Box<dyn Shape + Sync>> = Vec::new();
+            let mut triangles: Vec<Box<dyn Shape + Sync + Send>> = Vec::new();
 
             log::debug!("indices: {:?}", mesh.indices);
             // TODO: Grab normals if any

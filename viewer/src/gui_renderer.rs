@@ -6,6 +6,7 @@ use raytracing::progress;
 use raytracing::renderer::{DefaultRenderer, Renderer};
 
 use itertools::Itertools;
+use raytracing::scene::examples::CornellBoxScene;
 
 pub struct PixelMsg {
     pub x: u32,
@@ -34,6 +35,7 @@ impl GUIRenderer {
                 width,
                 height,
                 spp: 20,
+                scene: CornellBoxScene.into(),
             }
             .into();
 

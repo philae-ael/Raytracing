@@ -18,7 +18,7 @@ pub struct Scattered {
 
 pub struct MaterialDescriptor {
     pub label: Option<String>,
-    pub material: Box<dyn Material + Sync>,
+    pub material: Box<dyn Material + Sync + Send>,
 }
 
 impl std::fmt::Debug for MaterialDescriptor {

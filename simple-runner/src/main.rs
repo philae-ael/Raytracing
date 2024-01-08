@@ -1,6 +1,9 @@
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb};
 
-use raytracing::renderer::{DefaultRenderer, OutputBuffers, Renderer};
+use raytracing::{
+    renderer::{DefaultRenderer, OutputBuffers, Renderer},
+    scene::examples::CornellBoxScene,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -11,7 +14,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let height = 1080;
     let spp = 150;
 
-    let mut renderer: Renderer = DefaultRenderer { width, height, spp }.into();
+    let mut renderer: Renderer = DefaultRenderer {
+        width,
+        height,
+        spp,
+        scene: CornellBoxScene.into(),
+    }
+    .into();
     renderer.options.gamma = 2.2;
 
     let mut output_buffers = OutputBuffers {

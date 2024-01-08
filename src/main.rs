@@ -16,8 +16,8 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use crate::{
     camera::Camera,
     hit::HittableList,
-    material::{Diffuse, Emit, MaterialDescriptor, MaterialId, Metal, Dielectric},
-    math::utils::*,
+    material::{Diffuse, Emit, MaterialDescriptor, MaterialId, Metal},
+    math::{quaternion::Quaternion, utils::*},
     renderer::Renderer,
 };
 
@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         MaterialDescriptor {
             label: Some("Uniform Gray".to_string()),
             material: Box::new(Diffuse {
-                color: Rgb([0.7, 0.3, 0.3]),
+                albedo: Rgb([0.7, 0.3, 0.3]),
             }),
         },
         MaterialDescriptor {
@@ -52,16 +52,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         MaterialDescriptor {
             label: Some("Glass".to_string()),
-            material: Box::new(Dielectric {
-                color: Rgb([0.8,0.8,0.8]),
-                ior: 1.5,
-                invert_normal: false
+            material: Box::new(Metal {
+                color: Rgb([0.8, 0.8, 0.8]),
+                roughness: 0.0,
             }),
         },
         MaterialDescriptor {
             label: Some("Ground".to_string()),
             material: Box::new(Diffuse {
-                color: Rgb([0.2, 0.9, 0.3]),
+                albedo: Rgb([0.2, 0.9, 0.3]),
             }),
         },
         MaterialDescriptor {
@@ -111,13 +110,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     ]);
 
+    let look_at = Vec3([0.0, 0.0, -1.0]);
+    let look_from = Vec3([3.0, 3.0, 2.0]);
+    let look_direction = look_at - look_from;
+    let camera = Camera::new(
+        width,
+        height,
+        f64::to_radians(40.),
+        look_direction.length(),
+        look_from,
+        Quaternion::from_direction(&look_direction, &-Vec3::Z),
+        1.0,
+    );
     let renderer = Renderer {
-        camera: Camera::new(width, height, 0.6*std::f64::consts::PI, 1.0, Vec3::ZERO),
+        camera,
         scene,
         materials,
         options: renderer::RendererOptions {
-            samples_per_pixel: 2048,
-            diffuse_depth: 50,
+            samples_per_pixel: 500,
+            diffuse_depth: 20,
             gamma: 2.2,
             world_material: MaterialId(5),
         },
@@ -142,7 +153,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // pixels in the image crate are from left to right, top to bottom
                 let vx = 2. * (x as f64 / (width - 1) as f64) - 1.;
                 let vy = 1. - 2. * (y as f64 / (height - 1) as f64);
-                *p = renderer.process_pixel(vx, vy);
+                let render_result = renderer.process_pixel(vx, vy);
+                *p = color::convert_lossy(render_result.color);
                 progress.inc();
             });
     });

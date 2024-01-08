@@ -27,16 +27,16 @@ use rand::{
 };
 
 #[derive(Default)]
-pub struct UnitSphere3RejectionMethod;
+pub struct UnitBall3RejectionMethod;
 #[derive(Default)]
-pub struct UnitSphere3PolarMethod;
+pub struct UnitBall3PolarMethod;
 
 #[derive(Default)]
-pub struct UnitSphere3<Method = UnitSphere3RejectionMethod> {
+pub struct UnitBall3<Method = UnitBall3RejectionMethod> {
     _phantom: PhantomData<Method>,
 }
 
-impl Distribution<[f64; 3]> for UnitSphere3<UnitSphere3RejectionMethod> {
+impl Distribution<[f64; 3]> for UnitBall3<UnitBall3RejectionMethod> {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> [f64; 3] {
         let uniform = Uniform::new(-1., 1.);
         let mut x1;
@@ -54,19 +54,38 @@ impl Distribution<[f64; 3]> for UnitSphere3<UnitSphere3RejectionMethod> {
     }
 }
 
-
-/// Constant time, but maybe still slower due to powf, cos, sin ? 
-impl Distribution<[f64; 3]> for UnitSphere3<UnitSphere3PolarMethod> {
+/// Constant time, but maybe still slower due to powf, cos, sin ?
+impl Distribution<[f64; 3]> for UnitBall3<UnitBall3PolarMethod> {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> [f64; 3] {
         let uniform = Uniform::new(0., 1.);
         let phi = std::f64::consts::TAU * uniform.sample(rng);
+        let (sp, cp) = f64::sin_cos(phi);
         let theta = std::f64::consts::PI * uniform.sample(rng);
+        let (st, ct) = f64::sin_cos(theta);
         let x = uniform.sample(rng);
         let r = x.powf(1. / 3.);
-        [
-            r * f64::cos(phi) * f64::sin(theta),
-            r * f64::sin(phi) * f64::sin(theta),
-            r * f64::cos(theta),
-        ]
+        [r * cp * st, r * sp * st, r * ct]
+    }
+}
+
+pub struct UnitBall2;
+impl Distribution<[f64; 2]> for UnitBall2 {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> [f64; 2] {
+        let uniform = Uniform::new(0., 1.);
+        let phi = std::f64::consts::TAU * uniform.sample(rng);
+        let x = uniform.sample(rng);
+        let r = x.sqrt();
+        let (s, c) = f64::sin_cos(phi);
+        [r * c, r * s]
+    }
+}
+
+pub struct UnitSphere2;
+impl Distribution<[f64; 2]> for UnitSphere2 {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> [f64; 2] {
+        let uniform = Uniform::new(0., 1.);
+        let phi = std::f64::consts::TAU * uniform.sample(rng);
+        let (s, c) = f64::sin_cos(phi);
+        [c, s]
     }
 }

@@ -105,6 +105,10 @@ pub struct Args {
 
     #[arg(long)]
     tev_hostname: Option<String>,
+
+    /// If provided, allow for a kind of adaptative sampling by estimating the error of a pixel until the error if less than the given value
+    #[arg(long)]
+    allowed_error: Option<f32>
 }
 
 fn main() -> anyhow::Result<()> {

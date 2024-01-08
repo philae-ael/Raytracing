@@ -17,8 +17,9 @@ rayon = "1.5.3"
 tobj = "3.2.3"
 
 [features]
-default = []
+default = ["debug_light"]
 # default = ["debug"]
 debug = ["counter", "counter_time"]
+debug_light = ["counter"]
 counter_time = []
 counter = []

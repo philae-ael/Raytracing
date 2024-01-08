@@ -14,7 +14,7 @@ use rayon::prelude::{ParallelBridge, ParallelIterator};
 use raytracing::{
     camera::PixelCoord,
     integrators::Integrator,
-    renderer::{DefaultRenderer, GenericRenderResult, PixelRenderResult, Renderer, Channel},
+    renderer::{Channel, DefaultRenderer, GenericRenderResult, PixelRenderResult, Renderer},
 };
 
 use itertools::Itertools;
@@ -49,6 +49,7 @@ pub struct TileRendererCreateInfo {
     pub scene: Scene,
     pub shuffle_tiles: bool,
     pub integrator: Box<dyn Integrator>,
+    pub allowed_error: Option<f32>,
 }
 
 pub struct TileRenderer {
@@ -74,6 +75,7 @@ impl TileRenderer {
                 spp: tile_create_info.spp,
                 scene: tile_create_info.scene,
                 integrator: tile_create_info.integrator,
+                allowed_error: tile_create_info.allowed_error,
             }
             .into(),
         }
@@ -106,16 +108,20 @@ impl TileRenderer {
                     for channel in msg.data[data_index] {
                         match channel {
                             Channel::Color(c) => {
-                                *output_buffers.color.get_pixel_mut(x + i, y + j) = c.to_srgb().into()
+                                *output_buffers.color.get_pixel_mut(x + i, y + j) =
+                                    c.to_srgb().into()
                             }
                             Channel::Normal(c) => {
-                                *output_buffers.normal.get_pixel_mut(x + i, y + j) = c.to_srgb().into()
+                                *output_buffers.normal.get_pixel_mut(x + i, y + j) =
+                                    c.to_srgb().into()
                             }
                             Channel::Albedo(c) => {
-                                *output_buffers.albedo.get_pixel_mut(x + i, y + j) = c.to_srgb().into()
+                                *output_buffers.albedo.get_pixel_mut(x + i, y + j) =
+                                    c.to_srgb().into()
                             }
                             Channel::Position(c) => {
-                                *output_buffers.position.get_pixel_mut(x + i, y + j) = c.to_srgb().into()
+                                *output_buffers.position.get_pixel_mut(x + i, y + j) =
+                                    c.to_srgb().into()
                             }
                             Channel::Z(c) => {
                                 *output_buffers.z.get_pixel_mut(x + i, y + j) = c.into()

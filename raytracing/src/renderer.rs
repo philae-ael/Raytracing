@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use bytemuck::{Pod, Zeroable};
 use rand::distributions::{self, Distribution};
 
@@ -11,13 +9,16 @@ use crate::{
     material::{texture::Uniform, Emit, MaterialDescriptor, MaterialId},
     math::{
         quaternion::LookAt,
+        stat::RgbSeries,
         vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
     },
     scene::Scene,
+    utils::counter::counter,
 };
 
 pub struct RendererOptions {
     pub samples_per_pixel: u32,
+    pub allowed_error: Option<f32>,
     pub world_material: MaterialId,
 }
 pub struct Renderer {
@@ -40,10 +41,19 @@ pub struct RayResult {
     pub ray_depth: f32,
     pub samples_accumulated: u32,
 }
+pub struct RaySeries {
+    pub normal: Vec3,
+    pub position: Vec3,
+    pub albedo: Rgb,
+    pub color: RgbSeries,
+    pub z: f32,
+    pub ray_depth: f32,
+    pub samples_accumulated: u32,
+}
 
-impl RayResult {
-    pub fn resample(self) -> Self {
-        let RayResult {
+impl RaySeries {
+    pub fn resample(self) -> RayResult {
+        let RaySeries {
             position,
             normal,
             albedo,
@@ -54,15 +64,35 @@ impl RayResult {
         } = self;
 
         let inv_samples = 1.0 / samples_accumulated as f32;
-        Self {
+        RayResult {
             normal: inv_samples * normal,
             position: inv_samples * position,
             albedo: (inv_samples * albedo.vec()).rgb(),
-            color: (inv_samples * color.vec()).rgb(),
+            color: color.mean(),
             z: inv_samples * z,
             ray_depth: inv_samples * ray_depth,
             samples_accumulated: 1,
         }
+    }
+
+    fn add_sample(&mut self, rhs: RayResult) {
+        let RayResult {
+            normal,
+            position,
+            albedo,
+            color,
+            z,
+            ray_depth,
+            samples_accumulated,
+        } = rhs;
+
+        self.color.add_sample(color);
+        self.normal += normal;
+        self.position += position;
+        self.albedo = (self.albedo.vec() + albedo.vec()).rgb();
+        self.z += z;
+        self.ray_depth += ray_depth;
+        self.samples_accumulated += samples_accumulated;
     }
 }
 
@@ -79,39 +109,16 @@ impl Default for RayResult {
         }
     }
 }
-
-impl Add for RayResult {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        let RayResult {
-            normal: normal1,
-            position: position1,
-            albedo: albedo1,
-            color: color1,
-            z: z1,
-            ray_depth: ray_depth1,
-            samples_accumulated: samples_accumulated1,
-        } = self;
-
-        let RayResult {
-            normal: normal2,
-            position: position2,
-            albedo: albedo2,
-            color: color2,
-            z: z2,
-            ray_depth: ray_depth2,
-            samples_accumulated: samples_accumulated2,
-        } = rhs;
-
-        RayResult {
-            normal: normal1 + normal2,
-            position: position1 + position2,
-            albedo: (albedo1.vec() + albedo2.vec()).rgb(),
-            color: (color1.vec() + color2.vec()).rgb(),
-            z: z1 + z2,
-            ray_depth: ray_depth1 + ray_depth2,
-            samples_accumulated: samples_accumulated1 + samples_accumulated2,
+impl Default for RaySeries {
+    fn default() -> Self {
+        Self {
+            normal: color::linear::BLACK.vec(),
+            position: Vec3::ZERO,
+            albedo: color::linear::BLACK,
+            color: RgbSeries::default(),
+            z: 0.0,
+            ray_depth: 0.0,
+            samples_accumulated: 0,
         }
     }
 }
@@ -203,15 +210,25 @@ impl Renderer {
         let distribution_y = distributions::Uniform::new(-pixel_height / 2., pixel_height / 2.);
 
         let mut rng = rand::thread_rng();
-        let ray_results = (0..self.options.samples_per_pixel)
-            .map(|_| {
-                let dvx = distribution_x.sample(&mut rng);
-                let dvy = distribution_y.sample(&mut rng);
-                let camera_ray = self.camera.ray(vx + dvx, vy + dvy, &mut rng);
-                self.integrator.ray_cast(self, camera_ray, 0)
-            })
-            .fold(RayResult::default(), RayResult::add)
-            .resample();
+        let mut ray_series = RaySeries::default();
+
+        for _ in 0..self.options.samples_per_pixel {
+            counter!("Samples");
+            let dvx = distribution_x.sample(&mut rng);
+            let dvy = distribution_y.sample(&mut rng);
+            let camera_ray = self.camera.ray(vx + dvx, vy + dvy, &mut rng);
+
+            ray_series.add_sample(self.integrator.ray_cast(self, camera_ray, 0));
+
+            if let Some(allowed_error) = self.options.allowed_error {
+                if let Some(_) = ray_series.color.is_precise_enough(allowed_error) {
+                    counter!("Adaptative sampling break");
+                    break;
+                }
+            }
+        }
+
+        let ray_results = ray_series.resample();
 
         GenericRenderResult {
             normal: ray_results.normal.rgb(),
@@ -229,6 +246,7 @@ pub struct DefaultRenderer {
     pub height: u32,
     pub spp: u32,
     pub scene: Scene,
+    pub allowed_error: Option<f32>,
     pub integrator: Box<dyn Integrator>,
 }
 
@@ -268,6 +286,7 @@ impl Into<Renderer> for DefaultRenderer {
             options: RendererOptions {
                 samples_per_pixel: self.spp,
                 world_material: sky_mat,
+                allowed_error: self.allowed_error,
             },
             integrator: self.integrator,
         }

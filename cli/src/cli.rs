@@ -36,6 +36,7 @@ impl Cli {
                 scene: args.scene.into(),
                 shuffle_tiles: false,
                 integrator: args.integrator.into(),
+                allowed_error: args.allowed_error
             }),
         };
 

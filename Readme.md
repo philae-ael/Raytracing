@@ -1,9 +1,13 @@
 # The famous Raytracing in a Weekend Book
 
 Current result: 
+![Current result](./output/ldr/color.jpg)
 
-![Current result](./out.jpg)
+Normals
+![Normals](./output/ldr/normal.jpg)
 
-With some post-processing (bloom)
+Albedo
+![Albedo](./output/ldr/albedo.jpg)
 
-![Current result](./out_plus_bloom.jpg)
+Depth
+![Depth](./output/ldr/depth.jpg)

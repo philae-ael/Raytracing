@@ -4,7 +4,7 @@ use image::Rgb;
 use crate::{
     aggregate::shapelist::ShapeList,
     material::{texture, Dielectric, Diffuse, Emit, MaterialDescriptor, MaterialId, Metal},
-    shape::Sphere,
+    shape::{Sphere, TriangleBuilder},
 };
 
 pub struct DefaultScene;
@@ -59,6 +59,17 @@ impl Into<Scene> for DefaultScene {
         ];
 
         let objects = ShapeList(vec![
+            Box::new(
+                TriangleBuilder {
+                    vertices: [
+                        Vec3::new(0.0, 0.0, -2.0),
+                        Vec3::new(2.0, 0.0, -2.0),
+                        Vec3::new(0.0, 2.0, -2.0),
+                    ],
+                    ..Default::default()
+                }
+                .build(MaterialId(1)),
+            ),
             Box::new(Sphere {
                 center: Vec3::new(0.0, 0.0, -1.),
                 radius: 0.5,

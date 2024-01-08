@@ -21,9 +21,11 @@
 pub mod implicit;
 pub mod shape;
 pub mod sphere;
+pub mod triangle;
 
 pub use shape::{
     local_info, FullIntersectionResult, IntersectionResult, MinIntersectionResult, Shape,
 };
 
 pub use sphere::Sphere;
+pub use triangle::{Triangle, TriangleBuilder};

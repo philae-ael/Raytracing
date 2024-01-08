@@ -15,7 +15,7 @@ use crate::{
     },
     progress,
     ray::Ray,
-    scene::{DefaultScene, Scene},
+    scene::Scene,
     shape::{local_info, IntersectionResult, Shape},
 };
 
@@ -276,6 +276,7 @@ pub struct DefaultRenderer {
     pub width: u32,
     pub height: u32,
     pub spp: u32,
+    pub scene: Scene,
 }
 
 impl Into<Renderer> for DefaultRenderer {
@@ -297,7 +298,8 @@ impl Into<Renderer> for DefaultRenderer {
             0.0,
         );
 
-        let mut scene: Scene = DefaultScene.into();
+        let mut scene = self.scene;
+
         let sky_mat = scene.insert_material(MaterialDescriptor {
             label: Some("Sky".to_owned()),
             material: Box::new(Emit {

@@ -9,6 +9,7 @@ use raytracing::progress;
 use raytracing::renderer::{DefaultRenderer, RenderResult, Renderer};
 
 use itertools::Itertools;
+use raytracing::scene::Scene;
 use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
 pub struct TileMsg {
@@ -17,12 +18,12 @@ pub struct TileMsg {
     pub data: Vec<RenderResult>,
 }
 
-#[derive(Clone, Copy)]
 pub struct TevRenderer {
     pub height: u32,
     pub width: u32,
     pub spp: u32,
     pub tile_size: u32,
+    pub scene: Scene,
 }
 
 impl TevRenderer {
@@ -34,7 +35,7 @@ impl TevRenderer {
             .collect()
     }
 
-    pub fn run(&mut self, mut client: TevClient) -> anyhow::Result<()> {
+    pub fn run(self, mut client: TevClient) -> anyhow::Result<()> {
         let width = self.width;
         let height = self.height;
         let tile_size = self.tile_size;
@@ -81,6 +82,7 @@ impl TevRenderer {
                 width,
                 height,
                 spp: self.spp,
+                scene: self.scene,
             }
             .into();
             let (tx, rx) = channel();

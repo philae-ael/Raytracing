@@ -1,7 +1,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use anyhow::Result;
-use raytracing::utils::{counter, timer::timed_scope_log};
+use rt::utils::{counter, timer::timed_scope_log};
 
 use crate::{
     output::{FileOutput, SDL2Streaming, TevStreaming},

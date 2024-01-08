@@ -145,24 +145,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "clap",
- "env_logger",
- "image",
- "itertools",
- "log",
- "rand",
- "rayon",
- "raytracing",
- "sdl2",
- "tev_client",
-]
-
-[[package]]
 name = "cmake"
 version = "0.1.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -674,21 +656,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "raytracing"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "env_logger",
- "glam",
- "image",
- "lazy_static",
- "log",
- "rand",
- "rayon",
- "tobj",
-]
-
-[[package]]
 name = "regex"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -704,6 +671,39 @@ name = "regex-syntax"
 version = "0.6.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
+
+[[package]]
+name = "rt"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "env_logger",
+ "glam",
+ "image",
+ "lazy_static",
+ "log",
+ "rand",
+ "rayon",
+ "tobj",
+]
+
+[[package]]
+name = "rt-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "clap",
+ "env_logger",
+ "image",
+ "itertools",
+ "log",
+ "rand",
+ "rayon",
+ "rt",
+ "sdl2",
+ "tev_client",
+]
 
 [[package]]
 name = "scoped_threadpool"

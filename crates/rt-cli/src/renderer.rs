@@ -16,7 +16,7 @@ use rand::{prelude::Distribution, thread_rng};
 use rayon::prelude::{
     IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
-use raytracing::{
+use rt::{
     camera::{Camera, PixelCoord, ViewportCoord},
     integrators::Integrator,
     math::{point::Point, quaternion::LookAt, vec::Vec3},
@@ -25,7 +25,7 @@ use raytracing::{
 };
 
 use itertools::Itertools;
-use raytracing::scene::Scene;
+use rt::scene::Scene;
 
 use anyhow::Result;
 

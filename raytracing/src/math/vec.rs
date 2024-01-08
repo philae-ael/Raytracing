@@ -43,10 +43,37 @@ impl RefrReflVecExt for Vec3 {
         }
         let eta = etai / etat;
         let k = 1. - eta * eta * (1. - cosi * cosi);
+
         if k < 0. {
             None
         } else {
             Some(eta * self + (eta * cosi - f32::sqrt(k)) * normal)
         }
+    }
+}
+
+pub trait Vec3SameDirExt {
+    fn same_direction(self, other: Self) -> Self;
+}
+
+impl Vec3SameDirExt for Vec3 {
+    /// Return self if self and other are pointing in the same general direction (self.dot(other) > 0.0) else, returns self
+    fn same_direction(self, other: Self) -> Self {
+        if self.dot(other) > 0.0 {
+            self
+        } else {
+            -self
+        }
+    }
+}
+
+pub trait Vec3AsNonZero: Sized {
+    fn as_non_zero(self, eps: f32) -> Option<Self>;
+}
+
+impl Vec3AsNonZero for Vec3 {
+    fn as_non_zero(self, eps: f32) -> Option<Self> {
+        use super::float::FloatAsExt;
+        self.length_squared().as_non_zero(eps * eps).and(Some(self))
     }
 }

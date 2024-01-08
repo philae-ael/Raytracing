@@ -5,7 +5,7 @@ use image::Rgb;
 
 use crate::{
     aggregate::shapelist::ShapeList,
-    material::{texture, Diffuse, Emit, Material, MaterialDescriptor, MaterialId, MixMaterial},
+    material::{texture, Diffuse, Emit, Material, MixMaterial, MaterialId, MaterialDescriptor},
     math::transform::Transform,
     scene::Scene,
     shape::{Shape, TriangleBuilder},

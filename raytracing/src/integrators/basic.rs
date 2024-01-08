@@ -1,67 +1,51 @@
-use glam::Vec3;
-
 use crate::{
     color,
-    math::{distributions::sphere_uv_from_direction, vec::{RgbAsVec3Ext, Vec3AsRgbExt}},
+    math::vec::{RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
     renderer::{RayResult, Renderer},
-    shape::{local_info, IntersectionResult, Shape},
+    shape::{IntersectionResult, Shape},
 };
 
 use super::Integrator;
 
-pub struct BasicIntegrator;
+pub struct BasicIntegrator {
+    pub max_depth: u32,
+}
 
 impl Integrator for BasicIntegrator {
-    fn throw_ray(&self, renderer: &Renderer, ray: Ray, depth: u32) -> RayResult {
+    fn ray_cast(&self, renderer: &Renderer, ray: Ray, depth: u32) -> RayResult {
         let mut rng = rand::thread_rng();
-        if depth == 0 {
+        if depth == self.max_depth {
             return RayResult::default();
         }
 
         // Prevent auto intersection
         let ray = Ray::new_with_range(ray.origin, ray.direction, 0.01..ray.bounds.1);
 
-        if let IntersectionResult::Instersection(record) = renderer.objects.intersection_full(ray) {
-            // On material hit
-            let material = &renderer.materials[record.local_info.material.0].material;
-            let scattered = material.scatter(ray, &record.local_info, &mut rng);
+        let IntersectionResult::Instersection(record) = renderer.objects.intersection_full(ray) else  {
+            return self.sky_ray(renderer, ray);
+        };
 
-            let (color, ray_depth) = if let Some(ray_out) = scattered.ray_out {
-                let ray_result = self.throw_ray(renderer, ray_out, depth - 1);
-                (ray_result.color, ray_result.ray_depth)
-            } else {
-                (color::WHITE, 0.0)
-            };
+        // On material hit
+        let material = &renderer.materials[record.local_info.material.0].material;
+        let scattered = material.scatter(ray, &record.local_info, &mut rng);
 
-            let color = (color.vec() * scattered.albedo.vec()).rgb();
-
-            RayResult {
-                normal: record.local_info.normal,
-                color,
-                z: record.t,
-                albedo: scattered.albedo,
-                ray_depth: ray_depth + 1.0,
-                samples_accumulated: 1,
-            }
+        let color = if let Some(ray_out) = scattered.ray_out {
+            let ray_result = self.ray_cast(renderer, ray_out, depth + 1);
+            ray_result.color
         } else {
-            // Sky
-            let material = &renderer.materials[renderer.options.world_material.0].material;
-            let record = local_info::Full {
-                pos: ray.origin,
-                normal: -ray.direction,
-                material: renderer.options.world_material,
-                uv: sphere_uv_from_direction(-ray.direction),
-            };
-            let scattered = material.scatter(ray, &record, &mut rng);
-            RayResult {
-                normal: Vec3::ZERO,
-                albedo: color::BLACK,
-                color: scattered.albedo,
-                z: 0.0,
-                ray_depth: 0.0,
-                samples_accumulated: 1,
-            }
+            color::WHITE
+        };
+
+        let color = (color.vec() * scattered.albedo.vec()).rgb();
+
+        RayResult {
+            normal: record.local_info.normal,
+            albedo: scattered.albedo,
+            color,
+            z: record.t,
+            ray_depth: (depth + 1) as f32,
+            samples_accumulated: 1,
         }
     }
 }

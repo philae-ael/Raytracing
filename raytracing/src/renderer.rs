@@ -8,7 +8,7 @@ use crate::{
     aggregate::shapelist::ShapeList,
     camera::{Camera, PixelCoord, ViewportCoord},
     color::BLACK,
-    integrators::{BasicIntegrator, Integrator},
+    integrators::{self, Integrator},
     material::{texture::Uniform, Emit, MaterialDescriptor, MaterialId},
     math::{
         quaternion::LookAt,
@@ -19,13 +19,12 @@ use crate::{
 
 pub struct RendererOptions {
     pub samples_per_pixel: u32,
-    pub diffuse_depth: u32,
-    pub gamma: f32,
     pub world_material: MaterialId,
 }
 pub struct Renderer {
     pub camera: Camera,
     pub objects: ShapeList,
+    pub lights: Vec<Vec3>,
     pub options: RendererOptions,
 
     // TODO: make a pool of materials
@@ -197,21 +196,15 @@ impl Renderer {
             .map(|_| {
                 let dvx = distribution_x.sample(&mut rng);
                 let dvy = distribution_y.sample(&mut rng);
-                self.integrator.throw_ray(
-                    self,
-                    self.camera.ray(vx + dvx, vy + dvy, &mut rng),
-                    self.options.diffuse_depth,
-                )
+                let camera_ray = self.camera.ray(vx + dvx, vy + dvy, &mut rng);
+                self.integrator.ray_cast(self, camera_ray, 0)
             })
             .fold(RayResult::default(), RayResult::add)
             .resample();
 
-        // Gamma correct
-        let color = Rgb(ray_results.color.0.map(|x| x.powf(1. / self.options.gamma)));
-
         GenericRenderResult {
             normal: ray_results.normal.to_array(),
-            color: color.0,
+            color: ray_results.color.0,
             albedo: ray_results.albedo.0,
             z: ray_results.z,
             ray_depth: ray_results.ray_depth,
@@ -258,13 +251,12 @@ impl Into<Renderer> for DefaultRenderer {
             camera,
             objects: scene.objects,
             materials: scene.materials,
+            lights: scene.lights,
             options: RendererOptions {
                 samples_per_pixel: self.spp,
-                diffuse_depth: 20,
-                gamma: 1.0,
                 world_material: sky_mat,
             },
-            integrator: Box::new(BasicIntegrator),
+            integrator: Box::new(integrators::WhittedIntegrator { max_depth: 20 }),
         }
     }
 }

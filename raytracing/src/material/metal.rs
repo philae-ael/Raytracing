@@ -4,7 +4,7 @@ use rand::prelude::Distribution;
 use crate::{
     math::{
         distributions::{UnitBall3, UnitBall3PolarMethod},
-        vec::{RefrReflVecExt, Vec3AsNonZero},
+        vec::{RefrReflVecExt, Vec3AsNonZero, RgbAsVec3Ext},
     },
     ray::Ray,
     shape::local_info,
@@ -41,5 +41,13 @@ impl Material for Metal {
             ray_out,
             albedo: self.texture.color(record.uv),
         }
+    }
+
+    fn reflection(&self) -> Option<Vec3> {
+        Some(self.texture.color([0., 0.]).vec())
+    }
+
+    fn diffuse(&self) -> Option<Vec3> {
+        None
     }
 }

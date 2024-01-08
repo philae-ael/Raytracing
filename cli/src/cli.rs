@@ -23,6 +23,14 @@ pub struct Cli {
 }
 impl Cli {
     pub fn new(args: Args) -> Result<Self> {
+        if args.no_threads {
+            // Only one thread == Not Threaded
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(1)
+                .build_global()
+                .unwrap();
+        }
+
         let outputs: HashSet<AvailableOutput> = HashSet::from_iter(args.output.into_iter());
         let tile_size = 32;
 
@@ -36,7 +44,7 @@ impl Cli {
                 scene: args.scene.into(),
                 shuffle_tiles: false,
                 integrator: args.integrator.into(),
-                allowed_error: args.allowed_error
+                allowed_error: args.allowed_error,
             }),
         };
 

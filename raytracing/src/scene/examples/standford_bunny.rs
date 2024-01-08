@@ -1,10 +1,11 @@
 use glam::{Quat, Vec3};
 
 use crate::{
+    color::Rgb,
     loader::ObjLoaderExt,
     material::{Gooch, MaterialDescriptor},
     math::transform::Transform,
-    scene::Scene, color::Rgb,
+    scene::Scene,
 };
 
 pub struct StandfordBunnyScene;

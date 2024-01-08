@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::{ray::Ray, shape::local_info, color::Rgb};
+use crate::{color::Rgb, ray::Ray, shape::local_info};
 
 pub trait Material {
     fn scatter(

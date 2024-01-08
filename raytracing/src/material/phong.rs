@@ -1,9 +1,10 @@
 use glam::Vec3;
 
 use crate::{
+    color::Rgb,
     math::vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
-    shape::local_info, color::Rgb,
+    shape::local_info,
 };
 
 use super::{Material, Scattered};

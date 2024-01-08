@@ -3,7 +3,7 @@ use glam::Vec3;
 use crate::{
     color::Rgb,
     material::{dielectric::Dielectric, texture, Diffuse, Emit, MaterialDescriptor, MixMaterial},
-    math::{vec::Vec3AsRgbExt, point::Point},
+    math::{point::Point, vec::Vec3AsRgbExt},
     scene::Scene,
     shape::Sphere,
 };

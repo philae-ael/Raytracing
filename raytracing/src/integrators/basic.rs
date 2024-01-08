@@ -3,7 +3,8 @@ use crate::{
     math::vec::{RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
     renderer::{RayResult, Renderer},
-    shape::{IntersectionResult, Shape}, timed_scope_accumulate,
+    shape::{IntersectionResult},
+    timed_scope_accumulate,
 };
 
 use super::Integrator;
@@ -25,7 +26,7 @@ impl Integrator for BasicIntegrator {
         let isect = timed_scope_accumulate!("Intersection", || {
             renderer.objects.intersection_full(ray)
         });
-        let IntersectionResult::Instersection(record) = isect else  {
+        let IntersectionResult::Intersection(record) = isect else  {
             return self.sky_ray(renderer, ray);
         };
 
@@ -33,11 +34,11 @@ impl Integrator for BasicIntegrator {
         let material = &renderer.materials[record.local_info.material.0].material;
         let scattered = material.scatter(ray, &record.local_info, &mut rng);
 
-        let color = if let Some(ray_out) = scattered.ray_out {
+        let (color, depth) = if let Some(ray_out) = scattered.ray_out {
             let ray_result = self.ray_cast(renderer, ray_out, depth + 1);
-            ray_result.color
+            (ray_result.color, ray_result.ray_depth + 1.0)
         } else {
-            color::linear::WHITE
+            (color::linear::WHITE, depth as f32)
         };
 
         let color = (color.vec() * scattered.albedo.vec()).rgb();
@@ -48,7 +49,7 @@ impl Integrator for BasicIntegrator {
             albedo: scattered.albedo,
             color,
             z: record.t,
-            ray_depth: (depth + 1) as f32,
+            ray_depth: depth,
             samples_accumulated: 1,
         }
     }

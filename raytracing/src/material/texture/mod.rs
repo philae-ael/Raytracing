@@ -1,6 +1,5 @@
 use crate::color::Rgb;
 
-
 pub type Uv = [f32; 2];
 pub trait Texture: Sync + Send {
     fn color(&self, uv: Uv) -> Rgb;

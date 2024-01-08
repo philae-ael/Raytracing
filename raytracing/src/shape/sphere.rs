@@ -1,6 +1,10 @@
 use glam::Vec3;
 
-use crate::{material::MaterialId, math::{distributions::sphere_uv_from_direction, point::Point}, ray::Ray};
+use crate::{
+    material::MaterialId,
+    math::{bounds::Bounds, distributions::sphere_uv_from_direction, point::Point},
+    ray::Ray,
+};
 
 use super::{
     local_info,
@@ -11,6 +15,7 @@ use super::{
 /// A simple sphere shape.
 ///
 /// Normals are pointing outwards if `radius` is positive, and are reversed if `radius` is negative
+#[derive(Debug)]
 pub struct Sphere {
     pub center: Point,
     pub radius: f32,
@@ -19,14 +24,14 @@ pub struct Sphere {
 
 impl Shape for Sphere {
     fn intersection_full(&self, ray: Ray) -> FullIntersectionResult {
-        if let IntersectionResult::Instersection(RayIntersection {
+        if let IntersectionResult::Intersection(RayIntersection {
             t,
             local_info: local_info::Minimum { pos },
         }) = self.intersect_bare(ray)
         {
             let normal = self.radius.signum() * (pos - self.center).normalize();
             let uv = sphere_uv_from_direction(normal);
-            IntersectionResult::Instersection(RayIntersection {
+            IntersectionResult::Intersection(RayIntersection {
                 t,
                 local_info: local_info::Full {
                     pos,
@@ -64,13 +69,14 @@ impl Shape for Sphere {
         };
 
         let pos = ray.at(t);
-        IntersectionResult::Instersection(RayIntersection {
+        IntersectionResult::Intersection(RayIntersection {
             t,
             local_info: local_info::Minimum { pos },
         })
     }
 
-    fn local_information(&self, _p: Vec3) -> Option<local_info::Full> {
-        todo!()
+    fn bounding_box(&self) -> Bounds {
+        let v = self.radius * Vec3::ONE;
+        Bounds::from_points(&[self.center - v, self.center + v])
     }
 }

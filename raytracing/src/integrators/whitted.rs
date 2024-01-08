@@ -7,7 +7,7 @@ use crate::{
     math::vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
     renderer::{RayResult, Renderer},
-    shape::{IntersectionResult, Shape},
+    shape::IntersectionResult,
 };
 
 use super::Integrator;
@@ -24,7 +24,7 @@ impl Integrator for WhittedIntegrator {
 
         let mut ray_depth = (depth + 1) as f32;
 
-        let IntersectionResult::Instersection(intersection)= renderer.objects.intersection_full(ray) else {return self.sky_ray(renderer, ray);};
+        let IntersectionResult::Intersection(intersection)= renderer.objects.intersection_full(ray) else {return self.sky_ray(renderer, ray);};
 
         let MaterialDescriptor { ref material, .. } =
             renderer.materials[intersection.local_info.material.0];

@@ -1,7 +1,7 @@
 pub mod examples;
 
 use crate::{
-    aggregate::shapelist::ShapeList,
+    aggregate::shapelist::{ShapeList, ShapeListEntry},
     material::{MaterialDescriptor, MaterialId},
     math::point::Point,
     shape::Shape,
@@ -17,7 +17,11 @@ pub struct Scene {
 impl Scene {
     /// Insert an object in the scene
     pub fn insert_object<T: Shape + Sync + Send + 'static>(&mut self, object: T) {
-        self.objects.0.push(Box::new(object))
+        self.objects.0.push(ShapeListEntry::Shape(Box::new(object)))
+    }
+
+    pub fn insert_shape_list(&mut self, list: ShapeList) {
+        self.objects.0.push(ShapeListEntry::List(list))
     }
 
     /// Insert a light in the scene

@@ -1,7 +1,7 @@
 use rand::prelude::Distribution;
 
 use crate::{
-    math::{distributions::*, quaternion::Quat, vec::Vec3, point::Point},
+    math::{distributions::*, point::Point, quaternion::Quat, vec::Vec3},
     ray::Ray,
 };
 
@@ -56,7 +56,7 @@ impl Camera {
             + vx * self.viewport_width * Vec3::X
             + vy * self.viewport_height * Vec3::Y;
         Ray::new(
-            self.origin + self.rotation.mul_vec3(offset),
+            self.origin, //+ self.rotation.mul_vec3(offset),
             self.rotation.mul_vec3(direction),
         )
     }

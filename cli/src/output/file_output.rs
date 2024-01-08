@@ -2,7 +2,7 @@ use anyhow::Result;
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb};
 use std::path::PathBuf;
 
-use crate::{cli::Cli, tile_renderer::OutputBuffers};
+use crate::{cli::FinalOutput, tile_renderer::OutputBuffers};
 
 pub struct FileOutput {
     pub hdr_outdir: Option<PathBuf>,
@@ -10,14 +10,16 @@ pub struct FileOutput {
 }
 
 impl FileOutput {
-    pub fn new(_cli: &Cli) -> Self {
+    pub fn new() -> Self {
         Self {
             hdr_outdir: Some("output/hdr/".into()),
             ldr_outdir: Some("output/ldr/".into()),
         }
     }
+}
 
-    pub fn commit(&self, output_buffers: OutputBuffers) -> Result<()> {
+impl FinalOutput for FileOutput {
+    fn commit(&self, output_buffers: &OutputBuffers) -> Result<()> {
         if let Some(ref hdr_output) = self.hdr_outdir {
             let convert_luma = |x| ConvertBuffer::<ImageBuffer<Rgb<f32>, Vec<f32>>>::convert(x);
             let hdr_path = hdr_output.as_path();
@@ -28,6 +30,9 @@ impl FileOutput {
                 match buff {
                     raytracing::renderer::Channel::Color(color) => {
                         color.save(hdr_path.join("color.exr"))
+                    }
+                    raytracing::renderer::Channel::Position(position) => {
+                        position.save(hdr_path.join("position.exr"))
                     }
                     raytracing::renderer::Channel::Normal(normal) => {
                         normal.save(hdr_path.join("normal.exr"))
@@ -58,6 +63,9 @@ impl FileOutput {
                     }
                     raytracing::renderer::Channel::Normal(normal) => {
                         convert_rgb(normal).save(ldr_path.join("normal.jpg"))
+                    }
+                    raytracing::renderer::Channel::Position(position) => {
+                        convert_rgb(position).save(ldr_path.join("position.jpg"))
                     }
                     raytracing::renderer::Channel::Albedo(albedo) => {
                         convert_rgb(albedo).save(ldr_path.join("albedo.jpg"))

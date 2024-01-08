@@ -4,13 +4,11 @@ use anyhow::{Context, Result};
 use rand::{distributions::Alphanumeric, Rng};
 use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
-use crate::{cli::OutputStreaming, tile_renderer::TileMsg, Dimensions};
+use crate::{cli::StreamingOutput, tile_renderer::TileMsg, Dimensions};
 
-
-trait ChannelTevExt {
-    
-}
-fn channel_names() -> [&'static str; 11] {
+trait ChannelTevExt {}
+const CHANNEL_COUNT: usize = 14; 
+fn channel_names() -> [&'static str; CHANNEL_COUNT] {
     [
         "R",
         "G",
@@ -18,6 +16,9 @@ fn channel_names() -> [&'static str; 11] {
         "normal.X",
         "normal.Y",
         "normal.Z", // normal
+        "position.X",
+        "position.Y",
+        "position.Z", // position
         "albedo.R",
         "albedo.G",
         "albedo.B", // albedo
@@ -25,11 +26,11 @@ fn channel_names() -> [&'static str; 11] {
         "ray_depth",
     ]
 }
-fn channel_offsets() -> [u64; 11] {
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+fn channel_offsets() -> [u64; CHANNEL_COUNT] {
+    core::array::from_fn(|i| i as u64)
 }
-fn channel_strides() -> [u64; 11] {
-    [11; 11]
+fn channel_strides() -> [u64; CHANNEL_COUNT] {
+    [CHANNEL_COUNT as u64; CHANNEL_COUNT]
 }
 
 pub struct TevStreaming {
@@ -105,7 +106,7 @@ impl TevStreaming {
     }
 }
 
-impl OutputStreaming for TevStreaming {
+impl StreamingOutput for TevStreaming {
     fn send_msg(&mut self, msg: &TileMsg) -> Result<()> {
         let x = msg.tile_x * self.tile_size;
         let y = msg.tile_y * self.tile_size;

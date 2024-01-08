@@ -10,6 +10,7 @@ use rand::thread_rng;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
 use raytracing::{
     camera::PixelCoord,
+    integrators::Integrator,
     renderer::{DefaultRenderer, GenericRenderResult, PixelRenderResult, Renderer},
 };
 
@@ -44,6 +45,7 @@ pub struct TileRendererCreateInfo {
     pub tile_size: u32,
     pub scene: Scene,
     pub shuffle_tiles: bool,
+    pub integrator: Box<dyn Integrator>,
 }
 
 pub struct TileRenderer {
@@ -68,6 +70,7 @@ impl TileRenderer {
                 height: tile_create_info.dimension.height,
                 spp: tile_create_info.spp,
                 scene: tile_create_info.scene,
+                integrator: tile_create_info.integrator,
             }
             .into(),
         }
@@ -84,6 +87,7 @@ impl TileRenderer {
         let mut output_buffers = OutputBuffers {
             color: ImageBuffer::new(width, height),
             normal: ImageBuffer::new(width, height),
+            position: ImageBuffer::new(width, height),
             albedo: ImageBuffer::new(width, height),
             z: ImageBuffer::new(width, height),
             ray_depth: ImageBuffer::new(width, height),
@@ -106,6 +110,9 @@ impl TileRenderer {
                             }
                             raytracing::renderer::Channel::Albedo(c) => {
                                 *output_buffers.albedo.get_pixel_mut(x + i, y + j) = Rgb(c)
+                            }
+                            raytracing::renderer::Channel::Position(c) => {
+                                *output_buffers.position.get_pixel_mut(x + i, y + j) = Rgb(c)
                             }
                             raytracing::renderer::Channel::Z(c) => {
                                 *output_buffers.z.get_pixel_mut(x + i, y + j) = Luma([c])
@@ -132,16 +139,21 @@ impl TileRenderer {
             s.spawn(|_| {
                 let mut on_tile_rendered = on_tile_rendered;
                 let rx: Receiver<Message> = rx; // Force move without moving anything else
+                let mut last_progress_update = std::time::Instant::now();
                 for msg in rx.iter() {
                     match msg {
                         Message::Tile(tile_msg) => {
                             push_tile_on_output_buffers(&tile_msg);
                             on_tile_rendered(&tile_msg);
-                            progress.print();
                         }
                         Message::Stop => {
                             break;
                         }
+                    }
+
+                    if last_progress_update.elapsed() >= std::time::Duration::from_millis(300) {
+                        progress.print();
+                        last_progress_update = std::time::Instant::now();
                     }
                 }
                 progress.print();

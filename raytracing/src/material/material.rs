@@ -22,6 +22,9 @@ pub trait Material {
         None
     }
 
+    fn emissive(&self) -> Option<Vec3> {
+        None
+    }
 }
 
 pub struct Scattered {

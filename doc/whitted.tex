@@ -50,3 +50,6 @@ To compute \(S\) and \(T\), one need to cast rays more rays until a maximum dept
 \subsection{Variations and subtilities}
 The function \(D\) should check whether path between the object and the light is not obstructed. If so, the light cannot contribute to the illumination.
 To check whether the contribution of a light should be taken into consideration, a \textit{shadow ray} is cast from the light up to the surface to check intersection with objects.
+
+Due to how the whitted illumination works, emissive materials can't work out of the box because emissive lightning require diffuse rays to be cast, grabing light from all incoming direction  and not only from light.
+A way to circumvent this limitation would be to detect emissive materials and consider them as area light in the diffuse calculation.

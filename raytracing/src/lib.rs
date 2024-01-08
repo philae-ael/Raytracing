@@ -9,4 +9,4 @@ pub mod scene;
 pub mod shape;
 pub mod utils;
 pub mod loader;
-mod integrators;
+pub mod integrators;

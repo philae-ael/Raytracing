@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::{material::MaterialId, math::distributions::sphere_uv_from_direction, ray::Ray};
+use crate::{material::MaterialId, math::{distributions::sphere_uv_from_direction, point::Point}, ray::Ray};
 
 use super::{
     local_info,
@@ -12,7 +12,7 @@ use super::{
 ///
 /// Normals are pointing outwards if `radius` is positive, and are reversed if `radius` is negative
 pub struct Sphere {
-    pub center: Vec3,
+    pub center: Point,
     pub radius: f32,
     pub material: MaterialId,
 }

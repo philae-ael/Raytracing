@@ -1,7 +1,7 @@
 use rand::prelude::Distribution;
 
 use crate::{
-    math::{distributions::*, quaternion::Quat, vec::Vec3},
+    math::{distributions::*, quaternion::Quat, vec::Vec3, point::Point},
     ray::Ray,
 };
 
@@ -11,7 +11,7 @@ pub struct Camera {
     pub viewport_height: f32,
     pub viewport_width: f32,
     pub focal_length: f32,
-    pub origin: Vec3,
+    pub origin: Point,
     pub rotation: Quat,
     pub aperture: f32,
 }
@@ -22,7 +22,7 @@ impl Camera {
         height: u32,
         vfov: f32,
         focal_length: f32,
-        origin: Vec3,
+        origin: Point,
         rotation: Quat,
         aperture: f32,
     ) -> Self {

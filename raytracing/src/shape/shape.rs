@@ -19,7 +19,7 @@ pub trait Shape {
 }
 
 pub mod local_info {
-    use crate::material::{texture::Uv, MaterialId};
+    use crate::{material::{texture::Uv, MaterialId}, math::point::Point};
     use glam::Vec3;
 
     /// Contains all the local information that could be needed
@@ -27,7 +27,7 @@ pub mod local_info {
     /// Note that all the information is computed. If not all information is needed, prefer other kinds of local_info.
     #[derive(Debug)]
     pub struct Full {
-        pub pos: Vec3,
+        pub pos: Point,
         pub normal: Vec3,
         pub material: MaterialId,
         pub uv: Uv,
@@ -36,7 +36,7 @@ pub mod local_info {
     /// Contains only the pure geometrical information needed to locate the point.
     #[derive(Debug)]
     pub struct Minimum {
-        pub pos: Vec3,
+        pub pos: Point,
     }
 }
 

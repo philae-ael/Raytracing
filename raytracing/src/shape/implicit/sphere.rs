@@ -1,16 +1,16 @@
-use glam::Vec3;
+use crate::math::point::Point;
 
 use super::ImplicitSurface;
 
 /// An implicit sphere
 pub struct Sphere {
     pub radius: f32,
-    pub origin: Vec3,
+    pub origin: Point,
 }
 
 impl ImplicitSurface for Sphere {
-    fn impl_f(&self, p: Vec3) -> f32 {
-        self.origin.distance_squared(p) - self.radius * self.radius
+    fn impl_f(&self, p: Point) -> f32 {
+        (self.origin - p).length() - self.radius * self.radius
     }
 }
 
@@ -20,6 +20,7 @@ mod tests {
 
     use crate::{
         material::MaterialId,
+        math::point::Point,
         ray::Ray,
         shape::{
             implicit::{solvers::NewtonSolver, ImplicitShape, ImplicitSurface, Sphere},
@@ -32,29 +33,11 @@ mod tests {
         let eps = 0.01;
         let sphere = Sphere {
             radius: 1.,
-            origin: Vec3::ZERO,
+            origin: Point::ORIGIN,
         };
 
-        assert!(
-            sphere
-                .impl_f(Vec3 {
-                    x: 2.0,
-                    y: 0.0,
-                    z: 0.0
-                })
-                .abs()
-                > eps
-        );
-        assert!(
-            sphere
-                .impl_f(Vec3 {
-                    x: 0.0,
-                    y: 1.0,
-                    z: 0.0
-                })
-                .abs()
-                < eps
-        );
+        assert!(sphere.impl_f(Point::new(2.0, 0.0, 0.0)).abs() > eps);
+        assert!(sphere.impl_f(Point::new(0.0, 1.0, 0.0)).abs() < eps);
     }
 
     #[test]
@@ -62,7 +45,7 @@ mod tests {
         let sphere = ImplicitShape {
             surface: Sphere {
                 radius: 0.5,
-                origin: Vec3::X,
+                origin: Point::new(1.0, 0.0, 0.0),
             },
             solver: NewtonSolver {
                 eps: 0.00001,
@@ -71,11 +54,15 @@ mod tests {
             material: MaterialId(0),
         };
 
-        let hit = sphere.intersection_full(Ray::new(Vec3::ZERO, Vec3::X));
+        let hit = sphere.intersection_full(Ray::new(Point::ORIGIN, Vec3::X));
         match hit {
             IntersectionResult::Instersection(h) => {
                 assert!(
-                    h.local_info.pos.distance_squared(Vec3::new(0.5, 0., 0.)) < sphere.solver.eps
+                    h.local_info
+                        .pos
+                        .vec()
+                        .distance_squared(Vec3::new(0.5, 0., 0.))
+                        < sphere.solver.eps
                 );
             }
             IntersectionResult::NoIntersection => panic!("{hit:?}"),

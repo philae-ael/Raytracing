@@ -1,4 +1,6 @@
-use glam::Vec3;
+
+
+use crate::math::point::Point;
 
 use super::ImplicitSurface;
 
@@ -9,11 +11,11 @@ pub struct Cube {
     /// The size of an edge of the cube
     pub size: f32,
     /// The center of the cube
-    pub origin: Vec3,
+    pub origin: Point,
 }
 
 impl ImplicitSurface for Cube {
-    fn impl_f(&self, p: Vec3) -> f32 {
+    fn impl_f(&self, p: Point) -> f32 {
         (p - self.origin).abs().max_element() - self.size / 2.0
     }
 }

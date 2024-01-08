@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::{material::MaterialId, ray::Ray};
+use crate::{material::MaterialId, ray::Ray, math::point::Point};
 
 use super::{
     local_info, shape::RayIntersection, FullIntersectionResult, IntersectionResult,
@@ -18,15 +18,15 @@ pub enum Winding {
 /// Gather information to create a triangle.
 /// 
 /// Use the [TriangleBuilder::build] method to compute additional data and build a [Triangle]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TriangleBuilder {
-    pub vertices: [Vec3; 3],
+    pub vertices: [Point; 3],
     pub winding: Winding,
 }
 
 /// A simple triangle Shape
 pub struct Triangle {
-    pub vertices: [Vec3; 3],
+    pub vertices: [Point; 3],
     pub normals: [Vec3; 3],
     pub material: MaterialId,
 }
@@ -58,7 +58,7 @@ enum MollerTrumboreResult {
 }
 
 impl MollerTrumboreResult {
-    fn moller_trumbore(vertices: [Vec3; 3], ray: Ray) -> Self {
+    fn moller_trumbore(vertices: [Point; 3], ray: Ray) -> Self {
         #[allow(non_snake_case)]
         let M = glam::mat3(
             vertices[2] - vertices[0],

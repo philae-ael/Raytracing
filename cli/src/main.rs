@@ -1,17 +1,18 @@
+mod cli;
+mod tile_renderer;
+mod tev;
+
 use std::{fmt::Display, path::PathBuf};
 
 use clap::{Parser, ValueEnum};
+use cli::Cli;
 use raytracing::scene::{
     examples::{CornellBoxScene, StandfordBunnyScene},
     Scene,
 };
-use tev_client::TevClient;
-use tev_renderer::TevRenderer;
-
-mod tev_renderer;
 
 #[derive(Debug, Default, Clone, Copy, ValueEnum)]
-enum AvailableScene {
+pub enum AvailableScene {
     Bunny,
     #[default]
     CornellBox,
@@ -26,8 +27,16 @@ impl Into<Scene> for AvailableScene {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Hash)]
+pub enum AvailableOutput {
+    #[default]
+    Tev,
+    Vulkan,
+    File,
+}
+
 #[derive(Clone, Debug)]
-struct Dimensions {
+pub struct Dimensions {
     width: u32,
     height: u32,
 }
@@ -52,7 +61,7 @@ impl Display for Dimensions {
 }
 
 #[derive(Parser, Debug)]
-struct Args {
+pub struct Args {
     tev_path: Option<PathBuf>,
     #[arg(long = "spp", default_value_t = 20)]
     /// Samples per pixels
@@ -65,35 +74,14 @@ struct Args {
     #[arg(short, long, default_value = "800x600")]
     /// Screen dimension in format `width`x`height`
     dimensions: Dimensions,
+
+    #[arg(short, long, value_enum)]
+    output: Vec<AvailableOutput>,
 }
 
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let args = Args::parse();
 
-    let client = if let Some(tev_path) = args.tev_path {
-        let command = std::process::Command::new(tev_path);
-        TevClient::spawn(command)
-    } else {
-        Ok(TevClient::wrap(std::net::TcpStream::connect(
-            "127.0.0.1:14158",
-        )?))
-    }?;
-    log::info!(
-        "Will run a rendering of scene {:?} on a screen of dimension {} with {} samples per pixels",
-        args.scene,
-        args.dimensions,
-        args.sample_per_pixel
-    );
-
-    TevRenderer {
-        width: args.dimensions.width,
-        height: args.dimensions.height,
-        spp: args.sample_per_pixel,
-        tile_size: 20,
-        scene: args.scene.into(),
-    }
-    .run(client)?;
-    log::info!("Done");
-    Ok(())
+    Cli::new(args)?.run()
 }

@@ -1,11 +1,10 @@
 use glam::{Quat, Vec3};
-use image::Rgb;
 
 use crate::{
     loader::ObjLoaderExt,
     material::{Gooch, MaterialDescriptor},
     math::transform::Transform,
-    scene::Scene,
+    scene::Scene, color::Rgb,
 };
 
 pub struct CornellBoxScene;
@@ -16,11 +15,11 @@ impl From<CornellBoxScene> for Scene {
         let default_material = scene.insert_material(MaterialDescriptor {
             label: Some("Goosh - Default".to_string()),
             material: Box::new(Gooch {
-                diffuse: Rgb([1.0, 0., 0.]),
+                diffuse: Rgb::from_array([1.0, 0., 0.]),
                 smoothness: 20.0,
                 light_dir: Vec3::new(-1.0, -1.0, 0.0),
-                yellow: Rgb([0.8, 0.8, 0.0]),
-                blue: Rgb([0.0, 0.0, 0.8]),
+                yellow: Rgb::from_array([0.8, 0.8, 0.0]),
+                blue: Rgb::from_array([0.0, 0.0, 0.8]),
             }),
         });
 

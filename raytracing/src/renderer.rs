@@ -1,13 +1,12 @@
 use std::ops::Add;
 
 use bytemuck::{Pod, Zeroable};
-use image::Rgb;
 use rand::distributions::{self, Distribution};
 
 use crate::{
     aggregate::shapelist::ShapeList,
     camera::{Camera, PixelCoord, ViewportCoord},
-    color::BLACK,
+    color::{self, Luma, Rgb},
     integrators::Integrator,
     material::{texture::Uniform, Emit, MaterialDescriptor, MaterialId},
     math::{
@@ -35,8 +34,8 @@ pub struct Renderer {
 pub struct RayResult {
     pub normal: Vec3,
     pub position: Vec3,
-    pub albedo: Rgb<f32>,
-    pub color: Rgb<f32>,
+    pub albedo: Rgb,
+    pub color: Rgb,
     pub z: f32,
     pub ray_depth: f32,
     pub samples_accumulated: u32,
@@ -70,10 +69,10 @@ impl RayResult {
 impl Default for RayResult {
     fn default() -> Self {
         Self {
-            normal: BLACK.vec(),
+            normal: color::linear::BLACK.vec(),
             position: Vec3::ZERO,
-            albedo: BLACK,
-            color: BLACK,
+            albedo: color::linear::BLACK,
+            color: color::linear::BLACK,
             z: 0.0,
             ray_depth: 0.0,
             samples_accumulated: 0,
@@ -150,7 +149,7 @@ impl<RgbStorage, LumaStorage> GenericRenderResult<RgbStorage, LumaStorage> {
     }
 }
 
-pub type PixelRenderResult = GenericRenderResult<[f32; 3], f32>;
+pub type PixelRenderResult = GenericRenderResult<Rgb, Luma>;
 
 impl<RgbStorage, LumaStorage> IntoIterator for GenericRenderResult<RgbStorage, LumaStorage> {
     type Item = Channel<RgbStorage, LumaStorage>;
@@ -215,12 +214,12 @@ impl Renderer {
             .resample();
 
         GenericRenderResult {
-            normal: ray_results.normal.into(),
-            position: ray_results.position.into(),
-            color: ray_results.color.0,
-            albedo: ray_results.albedo.0,
-            z: ray_results.z,
-            ray_depth: ray_results.ray_depth,
+            normal: ray_results.normal.rgb(),
+            position: ray_results.position.rgb(),
+            color: ray_results.color,
+            albedo: ray_results.albedo,
+            z: Luma(ray_results.z),
+            ray_depth: Luma(ray_results.ray_depth),
         }
     }
 }

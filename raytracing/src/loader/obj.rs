@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
 use glam::Vec3;
-use image::Rgb;
 
 use crate::{
     aggregate::shapelist::ShapeList,
-    material::{texture, Diffuse, Emit, Material, MixMaterial, MaterialId, MaterialDescriptor},
+    color::Rgb,
+    material::{texture, Diffuse, Emit, Material, MaterialDescriptor, MaterialId, MixMaterial},
     math::transform::Transform,
     scene::Scene,
     shape::{Shape, TriangleBuilder},
@@ -60,15 +60,15 @@ impl ObjLoaderExt for Scene {
                     Box::new(MixMaterial {
                         p: 0.5,
                         mat1: Diffuse {
-                            texture: Box::new(texture::Uniform(Rgb(material.diffuse))),
+                            texture: Box::new(texture::Uniform(Rgb::from_array(material.diffuse))),
                         },
                         mat2: Emit {
-                            texture: Box::new(texture::Uniform(Rgb(ke))),
+                            texture: Box::new(texture::Uniform(Rgb::from_array(ke))),
                         },
                     })
                 } else {
                     Box::new(Diffuse {
-                        texture: Box::new(texture::Uniform(Rgb(material.diffuse))),
+                        texture: Box::new(texture::Uniform(Rgb::from_array(material.diffuse))),
                     })
                 };
 

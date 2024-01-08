@@ -1,25 +1,24 @@
 pub use glam::Vec3;
-use image::Rgb;
 
-use crate::utils::log_once::warn_once;
+use crate::{color::Rgb, utils::log_once::warn_once};
 
 pub trait RgbAsVec3Ext {
     fn vec(&self) -> Vec3;
 }
 
-impl RgbAsVec3Ext for Rgb<f32> {
+impl RgbAsVec3Ext for Rgb {
     fn vec(&self) -> Vec3 {
         Vec3::from_array(self.0)
     }
 }
 
 pub trait Vec3AsRgbExt {
-    fn rgb(&self) -> Rgb<f32>;
+    fn rgb(&self) -> Rgb;
 }
 
 impl Vec3AsRgbExt for Vec3 {
-    fn rgb(&self) -> Rgb<f32> {
-        Rgb(self.to_array())
+    fn rgb(&self) -> Rgb {
+        Rgb::from_array(self.to_array())
     }
 }
 

@@ -1,7 +1,6 @@
 use glam::Vec3;
-use image::Rgb;
 
-use crate::{ray::Ray, shape::local_info};
+use crate::{ray::Ray, shape::local_info, color::Rgb};
 
 pub trait Material {
     fn scatter(
@@ -28,7 +27,7 @@ pub trait Material {
 }
 
 pub struct Scattered {
-    pub albedo: Rgb<f32>,
+    pub albedo: Rgb,
     pub ray_out: Option<Ray>,
 }
 

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
 use rand::{distributions::Alphanumeric, Rng};
@@ -7,7 +7,7 @@ use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 use crate::{cli::StreamingOutput, tile_renderer::TileMsg, Dimensions};
 
 trait ChannelTevExt {}
-const CHANNEL_COUNT: usize = 14; 
+const CHANNEL_COUNT: usize = 14;
 fn channel_names() -> [&'static str; CHANNEL_COUNT] {
     [
         "R",
@@ -107,7 +107,7 @@ impl TevStreaming {
 }
 
 impl StreamingOutput for TevStreaming {
-    fn send_msg(&mut self, msg: &TileMsg) -> Result<()> {
+    fn send_msg(&mut self, msg: Arc<TileMsg>) -> Result<()> {
         let x = msg.tile_x * self.tile_size;
         let y = msg.tile_y * self.tile_size;
         let tile_width = (x + self.tile_size).min(self.dimension.width) - x;

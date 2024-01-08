@@ -1,39 +1,13 @@
-use std::{
-    collections::HashSet,
-    sync::{LockResult, Mutex, MutexGuard},
-};
-
-pub struct LogSet {
-    inner: Mutex<HashSet<String>>,
-}
-
-impl LogSet {
-    fn new() -> Self {
-        Self {
-            inner: Mutex::new(HashSet::new()),
-        }
-    }
-
-    pub fn lock(&self) -> LockResult<MutexGuard<'_, HashSet<String>>> {
-        self.inner.lock()
-    }
-}
-
-lazy_static::lazy_static! {
-    pub static ref __SET: LogSet = LogSet::new();
-}
-
 #[macro_export]
 macro_rules! log_once {
     (target: $target:expr, $lvl:expr, $($arg:tt)+) => {
-        let message = format!($($arg)+);
-        if log::log_enabled!(target: $target, $lvl) {
-            let event = format!("[{}::{}] {}", $target, $lvl, message);
-            use crate::utils::log_once::__SET;
-            if __SET.lock().unwrap().insert(event){
-                log::log!(target: $target, $lvl, "{}", message);
+        use std::sync::Once;
+        static ONCE: Once = Once::new();
+        ONCE.call_once(|| {
+            if log::log_enabled!(target: $target, $lvl) {
+                log::log!(target: $target, $lvl, $($arg)+);
             }
-        }
+        });
     };
     ($lvl:expr, $($arg:tt)+) => ($crate::log_once!(target: module_path!(), $lvl,  $($arg)+));
 }

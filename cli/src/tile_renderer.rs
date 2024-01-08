@@ -1,4 +1,7 @@
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::{
+    mpsc::{channel, Receiver},
+    Arc,
+};
 
 use crate::Dimensions;
 
@@ -20,7 +23,7 @@ use raytracing::scene::Scene;
 use anyhow::Result;
 
 enum Message {
-    Tile(TileMsg),
+    Tile(Arc<TileMsg>),
     Stop,
 }
 pub struct TileMsg {
@@ -76,7 +79,7 @@ impl TileRenderer {
         }
     }
 
-    pub fn run<F: FnMut(&TileMsg) -> () + Send>(
+    pub fn run<F: FnMut(Arc<TileMsg>) -> () + Send>(
         self,
         on_tile_rendered: F,
     ) -> anyhow::Result<OutputBuffers> {
@@ -144,7 +147,7 @@ impl TileRenderer {
                     match msg {
                         Message::Tile(tile_msg) => {
                             push_tile_on_output_buffers(&tile_msg);
-                            on_tile_rendered(&tile_msg);
+                            on_tile_rendered(tile_msg);
                         }
                         Message::Stop => {
                             break;
@@ -177,11 +180,11 @@ impl TileRenderer {
                     progress.inc();
 
                     // Broadcast results to the thread which is in charge
-                    tx.send(Message::Tile(TileMsg {
+                    tx.send(Message::Tile(Arc::new(TileMsg {
                         tile_x,
                         tile_y,
                         data,
-                    }))?;
+                    })))?;
 
                     Ok(())
                 },

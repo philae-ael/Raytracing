@@ -4,21 +4,48 @@ use anyhow::{Context, Result};
 use rand::{distributions::Alphanumeric, Rng};
 use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
-use crate::{
-    cli::{Cli, OutputStreaming},
-    tile_renderer::TileMsg,
-};
+use crate::{cli::OutputStreaming, tile_renderer::TileMsg, Dimensions};
+
+
+trait ChannelTevExt {
+    
+}
+fn channel_names() -> [&'static str; 11] {
+    [
+        "R",
+        "G",
+        "B", // color
+        "normal.X",
+        "normal.Y",
+        "normal.Z", // normal
+        "albedo.R",
+        "albedo.G",
+        "albedo.B", // albedo
+        "Z",        // depth
+        "ray_depth",
+    ]
+}
+fn channel_offsets() -> [u64; 11] {
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+}
+fn channel_strides() -> [u64; 11] {
+    [11; 11]
+}
 
 pub struct TevStreaming {
     client: TevClient,
     image_name: String,
-    channel_names: [&'static str; 11],
-    channel_offsets: [u64; 11],
-    channel_strides: [u64; 11],
+    tile_size: u32,
+    dimension: Dimensions,
 }
 
 impl TevStreaming {
-    pub fn new(cli: &Cli, tev_path: Option<String>, tev_hostname: Option<String>) -> Result<Self> {
+    pub fn new(
+        dimension: Dimensions,
+        tile_size: u32,
+        tev_path: Option<String>,
+        tev_hostname: Option<String>,
+    ) -> Result<Self> {
         let tev_hostname: String = tev_hostname.unwrap_or("127.0.0.1:14158".into());
         let tev_path: String = tev_path.unwrap_or("./tev".into());
 
@@ -36,7 +63,9 @@ impl TevStreaming {
             Ok(())
         };
         let try_connect = || -> Result<TevClient> {
-            Ok(TevClient::wrap(std::net::TcpStream::connect(&tev_hostname)?))
+            Ok(TevClient::wrap(std::net::TcpStream::connect(
+                &tev_hostname,
+            )?))
         };
 
         log::debug!("Trying tev direct connection");
@@ -58,58 +87,42 @@ impl TevStreaming {
                 .collect()
         }
         let image_name = format!("raytraced-{}", get_id());
-        let channel_names = [
-            "R",
-            "G",
-            "B", // color
-            "normal.X",
-            "normal.Y",
-            "normal.Z", // normal
-            "albedo.R",
-            "albedo.G",
-            "albedo.B", // albedo
-            "Z",        // depth
-            "ray_depth",
-        ];
-
-        let channel_offsets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let channel_strides = [11; 11];
 
         client.send(PacketCreateImage {
             image_name: &image_name,
             grab_focus: true,
-            channel_names: &channel_names,
-            width: cli.dimensions.width,
-            height: cli.dimensions.height,
+            channel_names: &channel_names(),
+            width: dimension.width,
+            height: dimension.height,
         })?;
 
         Ok(Self {
             client,
             image_name,
-            channel_names,
-            channel_offsets,
-            channel_strides,
+            dimension,
+            tile_size,
         })
     }
 }
 
 impl OutputStreaming for TevStreaming {
-    fn send_msg(&mut self, cli: &Cli, msg: &TileMsg) -> Result<()> {
-        let x = msg.tile_x * cli.tile_size;
-        let y = msg.tile_y * cli.tile_size;
-        let tile_width = (x + cli.tile_size).min(cli.dimensions.width) - x;
-        let tile_height = (y + cli.tile_size).min(cli.dimensions.height) - y;
+    fn send_msg(&mut self, msg: &TileMsg) -> Result<()> {
+        let x = msg.tile_x * self.tile_size;
+        let y = msg.tile_y * self.tile_size;
+        let tile_width = (x + self.tile_size).min(self.dimension.width) - x;
+        let tile_height = (y + self.tile_size).min(self.dimension.height) - y;
 
         assert!(msg.data.len() == (tile_width * tile_height) as usize);
+
         let data = bytemuck::cast_slice(msg.data.as_slice());
 
         self.client
             .send(PacketUpdateImage {
                 image_name: &self.image_name,
                 grab_focus: false,
-                channel_names: &self.channel_names,
-                channel_offsets: &self.channel_offsets,
-                channel_strides: &self.channel_strides,
+                channel_names: &channel_names(),
+                channel_offsets: &channel_offsets(),
+                channel_strides: &channel_strides(),
                 x,
                 y,
                 width: tile_width,

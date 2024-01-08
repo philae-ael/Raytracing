@@ -19,33 +19,57 @@ impl FileOutput {
 
     pub fn commit(&self, output_buffers: OutputBuffers) -> Result<()> {
         if let Some(ref hdr_output) = self.hdr_outdir {
+            let convert_luma = |x| ConvertBuffer::<ImageBuffer<Rgb<f32>, Vec<f32>>>::convert(x);
             let hdr_path = hdr_output.as_path();
             std::fs::create_dir_all(hdr_output)?;
 
             log::info!("Saving HDR images...");
-            output_buffers.color.save(hdr_path.join("color.exr"))?;
-            output_buffers.normal.save(hdr_path.join("normal.exr"))?;
-            output_buffers.albedo.save(hdr_path.join("albedo.exr"))?;
-            ConvertBuffer::<ImageBuffer<Rgb<f32>, Vec<f32>>>::convert(&output_buffers.depth)
-                .save(hdr_path.join("depth.exr"))?;
-            ConvertBuffer::<ImageBuffer<Rgb<f32>, Vec<f32>>>::convert(&output_buffers.ray_depth)
-                .save(hdr_path.join("ray_depth.exr"))?;
+            for buff in output_buffers.as_ref().into_iter() {
+                match buff {
+                    raytracing::renderer::Channel::Color(color) => {
+                        color.save(hdr_path.join("color.exr"))
+                    }
+                    raytracing::renderer::Channel::Normal(normal) => {
+                        normal.save(hdr_path.join("normal.exr"))
+                    }
+                    raytracing::renderer::Channel::Albedo(albedo) => {
+                        albedo.save(hdr_path.join("albedo.exr"))
+                    }
+                    raytracing::renderer::Channel::Z(z) => {
+                        convert_luma(z).save(hdr_path.join("depth.exr"))
+                    }
+                    raytracing::renderer::Channel::RayDepth(ray_depth) => {
+                        convert_luma(ray_depth).save(hdr_path.join("ray_depth.exr"))
+                    }
+                }?
+            }
         }
         if let Some(ref ldr_output) = self.ldr_outdir {
+            let convert_luma = |x| ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(x);
+            let convert_rgb = |x| ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(x);
             let ldr_path = ldr_output.as_path();
             std::fs::create_dir_all(ldr_output)?;
 
             log::info!("Saving LDR images...");
-            ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(&output_buffers.color)
-                .save(ldr_path.join("color.jpg"))?;
-            ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(&output_buffers.normal)
-                .save(ldr_path.join("normal.jpg"))?;
-            ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(&output_buffers.albedo)
-                .save(ldr_path.join("albedo.jpg"))?;
-            ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(&output_buffers.depth)
-                .save(ldr_path.join("depth.jpg"))?;
-            ConvertBuffer::<ImageBuffer<Rgb<u8>, Vec<u8>>>::convert(&output_buffers.ray_depth)
-                .save(ldr_path.join("ray_depth.jpg"))?;
+            for buff in output_buffers.as_ref().into_iter() {
+                match buff {
+                    raytracing::renderer::Channel::Color(color) => {
+                        convert_rgb(color).save(ldr_path.join("color.jpg"))
+                    }
+                    raytracing::renderer::Channel::Normal(normal) => {
+                        convert_rgb(normal).save(ldr_path.join("normal.jpg"))
+                    }
+                    raytracing::renderer::Channel::Albedo(albedo) => {
+                        convert_rgb(albedo).save(ldr_path.join("albedo.jpg"))
+                    }
+                    raytracing::renderer::Channel::Z(z) => {
+                        convert_luma(z).save(ldr_path.join("depth.jpg"))
+                    }
+                    raytracing::renderer::Channel::RayDepth(ray_depth) => {
+                        convert_luma(ray_depth).save(ldr_path.join("ray_depth.jpg"))
+                    }
+                }?
+            }
         }
         Ok(())
     }

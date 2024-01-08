@@ -61,3 +61,22 @@ impl Camera {
         )
     }
 }
+
+pub struct PixelCoord {
+    pub x: u32,
+    pub y: u32,
+}
+
+pub struct ViewportCoord {
+    pub vx: f32,
+    pub vy: f32,
+}
+
+impl ViewportCoord {
+    pub fn from_pixel_coord(camera: &Camera, coords: PixelCoord) -> Self {
+        Self {
+            vx: 2. * (coords.x as f32 / (camera.width - 1) as f32) - 1.,
+            vy: 1. - 2. * (coords.y as f32 / (camera.height - 1) as f32),
+        }
+    }
+}

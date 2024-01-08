@@ -1,24 +1,35 @@
 use std::sync::mpsc::{channel, Receiver};
 
+use crate::Dimensions;
+
 use super::progress;
 use bytemuck::Zeroable;
 use image::{ImageBuffer, Luma, Rgb, Rgb32FImage};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
-use raytracing::renderer::{DefaultRenderer, RenderResult, Renderer};
+use raytracing::{
+    camera::PixelCoord,
+    renderer::{DefaultRenderer, GenericRenderResult, PixelRenderResult, Renderer},
+};
 
 use itertools::Itertools;
 use raytracing::scene::Scene;
 
+use anyhow::Result;
+
+enum Message {
+    Tile(TileMsg),
+    Stop,
+}
 pub struct TileMsg {
     pub tile_x: u32,
     pub tile_y: u32,
-    pub data: Vec<RenderResult>,
+    pub data: Vec<PixelRenderResult>,
 }
 
 impl TileMsg {
-    fn ss(&self, tile_size: u32, height: u32, width: u32) -> (u32, u32, u32, u32) {
+    fn tile_bounds(&self, tile_size: u32, height: u32, width: u32) -> (u32, u32, u32, u32) {
         let x = self.tile_x * tile_size;
         let y = self.tile_y * tile_size;
         let tile_width = (x + tile_size).min(width) - x;
@@ -27,58 +38,83 @@ impl TileMsg {
     }
 }
 
-pub struct TileRenderer {
-    pub height: u32,
-    pub width: u32,
+pub struct TileRendererCreateInfo {
+    pub dimension: Dimensions,
     pub spp: u32,
     pub tile_size: u32,
     pub scene: Scene,
+    pub shuffle_tiles: bool,
 }
 
-pub struct OutputBuffers {
-    pub color: Rgb32FImage,
-    pub normal: Rgb32FImage,
-    pub albedo: Rgb32FImage,
-    pub depth: image::ImageBuffer<Luma<f32>, Vec<f32>>,
-    pub ray_depth: image::ImageBuffer<Luma<f32>, Vec<f32>>,
+pub struct TileRenderer {
+    pub dimension: Dimensions,
+    pub tile_size: u32,
+    pub shuffle_tiles: bool,
+    pub renderer: Renderer,
 }
+
+type Luma32FImage = image::ImageBuffer<Luma<f32>, Vec<f32>>;
+pub type OutputBuffers = GenericRenderResult<Rgb32FImage, Luma32FImage>;
 
 impl TileRenderer {
+    pub fn new(tile_create_info: TileRendererCreateInfo) -> Self {
+        Self {
+            dimension: tile_create_info.dimension.clone(),
+            tile_size: tile_create_info.tile_size,
+            shuffle_tiles: tile_create_info.shuffle_tiles,
+
+            renderer: DefaultRenderer {
+                width: tile_create_info.dimension.width,
+                height: tile_create_info.dimension.height,
+                spp: tile_create_info.spp,
+                scene: tile_create_info.scene,
+            }
+            .into(),
+        }
+    }
+
     pub fn run<F: FnMut(&TileMsg) -> () + Send>(
         self,
         on_tile_rendered: F,
     ) -> anyhow::Result<OutputBuffers> {
-        let width = self.width;
-        let height = self.height;
+        let width = self.dimension.width;
+        let height = self.dimension.height;
         let tile_size = self.tile_size;
 
         let mut output_buffers = OutputBuffers {
             color: ImageBuffer::new(width, height),
             normal: ImageBuffer::new(width, height),
             albedo: ImageBuffer::new(width, height),
-            depth: ImageBuffer::new(width, height),
+            z: ImageBuffer::new(width, height),
             ray_depth: ImageBuffer::new(width, height),
         };
 
         let mut push_tile_on_output_buffers = |msg: &TileMsg| {
-            let (x, y, width, height) = msg.ss(self.tile_size, self.height, self.width);
+            let (x, y, width, height) =
+                msg.tile_bounds(self.tile_size, self.dimension.height, self.dimension.width);
 
             for i in 0..width {
                 for j in 0..height {
                     let data_index = (i + width * j) as usize;
-                    let RenderResult {
-                        color,
-                        normal,
-                        albedo,
-                        z,
-                        ray_depth,
-                    } = msg.data[data_index];
-
-                    *output_buffers.ray_depth.get_pixel_mut(x + i, y + j) = Luma([ray_depth]);
-                    *output_buffers.depth.get_pixel_mut(x + i, y + j) = Luma([z]);
-                    *output_buffers.normal.get_pixel_mut(x + i, y + j) = Rgb(normal);
-                    *output_buffers.albedo.get_pixel_mut(x + i, y + j) = Rgb(albedo);
-                    *output_buffers.color.get_pixel_mut(x + i, y + j) = Rgb(color);
+                    for channel in msg.data[data_index] {
+                        match channel {
+                            raytracing::renderer::Channel::Color(c) => {
+                                *output_buffers.color.get_pixel_mut(x + i, y + j) = Rgb(c)
+                            }
+                            raytracing::renderer::Channel::Normal(c) => {
+                                *output_buffers.normal.get_pixel_mut(x + i, y + j) = Rgb(c)
+                            }
+                            raytracing::renderer::Channel::Albedo(c) => {
+                                *output_buffers.albedo.get_pixel_mut(x + i, y + j) = Rgb(c)
+                            }
+                            raytracing::renderer::Channel::Z(c) => {
+                                *output_buffers.z.get_pixel_mut(x + i, y + j) = Luma([c])
+                            }
+                            raytracing::renderer::Channel::RayDepth(c) => {
+                                *output_buffers.ray_depth.get_pixel_mut(x + i, y + j) = Luma([c])
+                            }
+                        }
+                    }
                 }
             }
         };
@@ -89,19 +125,7 @@ impl TileRenderer {
         let progress = progress::Progress::new((tile_count_x * tile_count_y) as usize);
         let mut generation_result = Ok(());
 
-        enum Message {
-            Tile(TileMsg),
-            Stop,
-        }
-
         rayon::scope(|s| {
-            let renderer: Renderer = DefaultRenderer {
-                width,
-                height,
-                spp: self.spp,
-                scene: self.scene,
-            }
-            .into();
             let (tx, rx) = channel();
 
             log::info!("Generating image...");
@@ -123,40 +147,30 @@ impl TileRenderer {
                 progress.print();
             });
 
+            // Product Tiles indices
             let mut v = (0..tile_count_x)
                 .cartesian_product(0..tile_count_y)
                 .collect::<Vec<_>>();
-            v.shuffle(&mut thread_rng());
 
-            // Note that this will stop whenever channel is closed (Aka. the receiver channel is closed)
+            // reorder them if needed
+            if self.shuffle_tiles {
+                v.shuffle(&mut thread_rng());
+            }
+
+            // Dispatch work
             generation_result = v.into_iter().par_bridge().try_for_each_with(
                 tx.clone(),
-                |tx, (tile_x, tile_y)| -> anyhow::Result<()> {
-                    let x_range = (tile_x * tile_size)..((tile_x + 1) * tile_size).min(width);
-                    let y_range = (tile_y * tile_size)..((tile_y + 1) * tile_size).min(height);
-                    let tile_width = x_range.len();
-                    let tile_height = y_range.len();
+                |tx, (tile_x, tile_y)| -> Result<()> {
+                    let data = self.tile_worker((tile_x, tile_y));
+                    progress.inc();
 
-                    let mut data = Vec::new();
-                    data.resize(tile_width * tile_height, RenderResult::zeroed());
-
-                    for (i, x) in x_range.enumerate() {
-                        for (j, y) in y_range.clone().enumerate() {
-                            // pixels in the image crate are from left to right, top to bottom
-                            let vx = 2. * (x as f32 / (renderer.camera.width - 1) as f32) - 1.;
-                            let vy = 1. - 2. * (y as f32 / (renderer.camera.height - 1) as f32);
-                            let index = j * tile_width as usize + i;
-                            data[index] = renderer.process_pixel(vx, vy);
-                        }
-                    }
-
-                    log::debug!("Tile {tile_x} {tile_y} done !");
+                    // Broadcast results to the thread which is in charge
                     tx.send(Message::Tile(TileMsg {
                         tile_x,
                         tile_y,
                         data,
                     }))?;
-                    progress.inc();
+
                     Ok(())
                 },
             );
@@ -170,5 +184,31 @@ impl TileRenderer {
         };
 
         Ok(output_buffers)
+    }
+
+    fn tile_worker(&self, (tile_x, tile_y): (u32, u32)) -> Vec<PixelRenderResult> {
+        let x_range =
+            (tile_x * self.tile_size)..((tile_x + 1) * self.tile_size).min(self.dimension.width);
+        let y_range =
+            (tile_y * self.tile_size)..((tile_y + 1) * self.tile_size).min(self.dimension.height);
+        let tile_width = x_range.len();
+        let tile_height = y_range.len();
+
+        let mut data = Vec::new();
+        data.resize(tile_width * tile_height, PixelRenderResult::zeroed());
+
+        for (j, y) in y_range.clone().enumerate() {
+            for (i, x) in x_range.clone().enumerate() {
+                let index = j * tile_width as usize + i;
+                data[index] = self.pixel_worker(PixelCoord { x, y });
+            }
+        }
+
+        log::debug!("Tile {tile_x} {tile_y} done !");
+        data
+    }
+
+    fn pixel_worker(&self, coords: PixelCoord) -> PixelRenderResult {
+        self.renderer.process_pixel(coords)
     }
 }

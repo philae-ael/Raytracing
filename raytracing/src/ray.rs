@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::ops::{Range, RangeInclusive};
 
 use super::math::vec::Vec3;
 
@@ -6,7 +6,7 @@ use super::math::vec::Vec3;
 pub struct Ray {
     pub origin: Vec3,
     pub direction: Vec3,
-    _marker: PhantomData<()>, // Can't construct Ray without new
+    pub bounds: (f32, f32),
 }
 
 impl Ray {
@@ -14,11 +14,33 @@ impl Ray {
         Self {
             origin,
             direction: direction.normalize(),
-            _marker: Default::default(),
+            bounds: (0.0, std::f32::INFINITY),
         }
     }
+    pub fn new_with_range(origin: Vec3, direction: Vec3, range: Range<f32>) -> Self {
+        Self {
+            origin,
+            direction: direction.normalize(),
+            bounds: (range.start, range.end),
+        }
+    }
+
+    pub fn range(&self) -> RangeInclusive<f32> {
+        self.bounds.0..=self.bounds.1
+    }
+
+    pub fn bounds_from_range(&mut self, range: RangeInclusive<f32>) {
+        self.bounds = (*range.start(), *range.end())
+    }
+
     pub fn at(&self, t: f32) -> Vec3 {
-        //assert!(t >= 0.0, "a ray can only be accessed at positive time");
+        if !self.range().contains(&t) {
+            crate::utils::log_once::error_once!("a ray has been accessed out of bounds");
+        }
+
+        self.at_unchecked(t)
+    }
+    pub fn at_unchecked(&self, t: f32) -> Vec3 {
         self.origin + t * self.direction
     }
 }

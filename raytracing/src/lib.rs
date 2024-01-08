@@ -8,3 +8,5 @@ pub mod ray;
 pub mod renderer;
 pub mod scene;
 pub mod surface;
+pub mod aggregate;
+pub mod utils;

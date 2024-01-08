@@ -1,8 +1,6 @@
-use std::ops::Range;
-
 use crate::{
     material::{texture::Uv, MaterialId},
-    math::utils::sphere_uv_from_direction,
+    math::distributions::sphere_uv_from_direction,
     math::vec::Vec3,
     ray::Ray,
 };
@@ -23,7 +21,7 @@ pub enum Hit {
 }
 
 pub trait Hittable {
-    fn hit(&self, ray: Ray, range: Range<f32>) -> Hit;
+    fn hit(&self, ray: Ray) -> Hit;
 }
 
 pub struct Sphere {
@@ -34,7 +32,7 @@ pub struct Sphere {
 }
 
 impl Hittable for Sphere {
-    fn hit(&self, ray: Ray, range: Range<f32>) -> Hit {
+    fn hit(&self, ray: Ray) -> Hit {
         let a = ray.direction.length_squared();
         let b_half = (ray.origin - self.center).dot(ray.direction);
         let c = (ray.origin - self.center).length_squared() - self.radius * self.radius;
@@ -46,6 +44,7 @@ impl Hittable for Sphere {
             // Either find first hit if hit is in range else, find the second hit
             let t = {
                 let t = (-b_half - f32::sqrt(discriminant_quarter)) / a;
+                let range = ray.range();
                 if range.contains(&t) {
                     t
                 } else {
@@ -68,28 +67,5 @@ impl Hittable for Sphere {
             };
             Hit::Hit(record)
         }
-    }
-}
-
-pub struct HittableList(pub Vec<Box<dyn Hittable + Sync>>);
-
-impl Hittable for HittableList {
-    fn hit(&self, ray: Ray, range: std::ops::Range<f32>) -> Hit {
-        let start = range.start;
-        let mut end = range.end;
-        let mut res = Hit::NoHit;
-
-        for hittable in self.0.iter() {
-            let range = start..end;
-            if range.is_empty() {
-                return Hit::NoHit;
-            }
-
-            if let Hit::Hit(record) = hittable.hit(ray, range) {
-                end = record.t;
-                res = Hit::Hit(record);
-            }
-        }
-        res
     }
 }

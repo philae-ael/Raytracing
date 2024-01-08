@@ -6,16 +6,16 @@ use rayon::prelude::{ParallelBridge, ParallelIterator};
 use crate::{
     camera::Camera,
     color,
-    hit::{Hit, HitRecord, Hittable, HittableList},
+    hit::{Hit, HitRecord},
     material::{MaterialDescriptor, MaterialId},
     math::{
         quaternion::LookAt,
-        utils::sphere_uv_from_direction,
+        distributions::sphere_uv_from_direction,
         vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
     },
     progress,
     ray::Ray,
-    scene::{DefaultScene, Scene},
+    scene::{DefaultScene, Scene}, aggregate::{shapelist::ShapeList, Aggregate},
 };
 
 pub struct RendererOptions {
@@ -26,7 +26,7 @@ pub struct RendererOptions {
 }
 pub struct Renderer {
     pub camera: Camera,
-    pub objects: HittableList,
+    pub objects: ShapeList,
     pub options: RendererOptions,
 
     // TODO: make a pool of materials
@@ -190,7 +190,10 @@ impl Renderer {
         }
         let mut rng = rand::thread_rng();
 
-        if let Hit::Hit(record) = self.objects.hit(ray.clone(), 0.01..f32::INFINITY) {
+        // Prevent auto intersection
+        let ray = Ray::new_with_range(ray.origin, ray.direction, 0.01..ray.bounds.1);
+
+        if let Hit::Hit(record) = self.objects.first_hit(ray) {
             let material = &self.materials[record.material.0].material;
             let scattered = material.scatter(ray, &record, &mut rng);
 

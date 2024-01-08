@@ -1,3 +1,3 @@
 pub mod quaternion;
-pub mod utils;
+pub mod distributions;
 pub mod vec;

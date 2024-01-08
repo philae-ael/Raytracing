@@ -2,8 +2,7 @@ use glam::Vec3;
 use image::Rgb;
 
 use crate::{
-    hit::HittableList,
-    material::{texture, Dielectric, Diffuse, Emit, MaterialDescriptor, MaterialId, Metal},
+    material::{texture, Dielectric, Diffuse, Emit, MaterialDescriptor, MaterialId, Metal}, aggregate::shapelist::ShapeList,
 };
 
 use super::hit::Sphere;
@@ -11,7 +10,7 @@ use super::hit::Sphere;
 pub struct DefaultScene;
 
 pub struct Scene {
-    pub objects: HittableList,
+    pub objects: ShapeList,
     pub materials: Vec<MaterialDescriptor>,
 }
 
@@ -59,7 +58,7 @@ impl Into<Scene> for DefaultScene {
             },
         ];
 
-        let objects = HittableList(vec![
+        let objects = ShapeList(vec![
             Box::new(Sphere {
                 label: Some("Bubble Sphere".to_string()),
                 center: Vec3::new(0.0, 0.0, -1.),

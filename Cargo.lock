@@ -1244,6 +1244,7 @@ dependencies = [
  "env_logger",
  "glam",
  "image",
+ "lazy_static",
  "log",
  "rand",
  "rayon",

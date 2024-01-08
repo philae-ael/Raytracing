@@ -7,7 +7,7 @@ use rand::{distributions::Uniform, prelude::Distribution};
 use crate::{
     hit::HitRecord,
     math::{
-        utils::{UnitBall3, UnitBall3PolarMethod},
+        distributions::{UnitBall3, UnitBall3PolarMethod},
         vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
     },
     ray::Ray,
@@ -17,7 +17,7 @@ use self::texture::Texture;
 
 pub struct MaterialDescriptor {
     pub label: Option<String>,
-    pub material: Box<dyn Material>,
+    pub material: Box<dyn Material + Sync>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -28,7 +28,7 @@ pub struct Scattered {
     pub ray_out: Option<Ray>,
 }
 
-pub trait Material: Send + Sync {
+pub trait Material  {
     fn scatter(&self, ray: Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered;
 }
 

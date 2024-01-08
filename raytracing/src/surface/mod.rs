@@ -1,5 +1,3 @@
-use std::ops;
-
 use glam::Vec3;
 
 use crate::{
@@ -14,8 +12,7 @@ pub struct HitPoint {
     pub normal: Vec3,
 }
 pub trait ImplicitSolver {
-    fn solve<F: Fn(Vec3) -> f32>(&self, f: F, ray: Ray, range: ops::Range<f32>)
-        -> Option<HitPoint>;
+    fn solve<F: Fn(Vec3) -> f32>(&self, f: F, ray: Ray) -> Option<HitPoint>;
 }
 
 pub trait ImplicitSurface {
@@ -29,15 +26,13 @@ pub struct NewtonSolver {
 }
 
 impl ImplicitSolver for NewtonSolver {
-    fn solve<F: Fn(Vec3) -> f32>(
-        &self,
-        f: F,
-        ray: Ray,
-        range: ops::Range<f32>,
-    ) -> Option<HitPoint> {
-        let mut t = range.start;
+    fn solve<F: Fn(Vec3) -> f32>(&self, f: F, ray: Ray) -> Option<HitPoint> {
+        let mut t = ray.bounds.0;
         let mut steps = 0;
         let f_along_ray = |t| f(ray.at(t));
+        let f_along_ray_unchecked = |t| f(ray.at_unchecked(t));
+
+        let (ray_start, ray_end) = ray.bounds;
         loop {
             let ft = f_along_ray(t);
             if ft.abs() < self.eps {
@@ -49,14 +44,14 @@ impl ImplicitSolver for NewtonSolver {
 
             steps += 1;
 
-            let dft = (f_along_ray(t + self.eps) - f_along_ray(t)) / self.eps;
+            let dft = (f_along_ray_unchecked(t + self.eps) - f_along_ray(t)) / self.eps;
 
             if dft.abs() < self.eps {
                 return None;
             }
 
             let new_t = t - ft / dft;
-            t = new_t.min(range.end).max(range.start);
+            t = new_t.min(ray_end).max(ray_start);
         }
 
         let x = ray.at(t);
@@ -79,12 +74,12 @@ pub struct HittableImplicitSurface<Surf: ImplicitSurface, Solv: ImplicitSolver> 
 }
 
 impl<Surf: ImplicitSurface, Solv: ImplicitSolver> Hittable for HittableImplicitSurface<Surf, Solv> {
-    fn hit(&self, ray: Ray, range: ops::Range<f32>) -> Hit {
+    fn hit(&self, ray: Ray) -> Hit {
         if let Some(HitPoint {
             t,
             hit_point,
             normal,
-        }) = self.solv.solve(|x| self.surf.impl_f(x), ray, range)
+        }) = self.solv.solve(|x| self.surf.impl_f(x), ray)
         {
             Hit::Hit(HitRecord {
                 hit_point,
@@ -105,7 +100,6 @@ pub struct Sphere {
     pub material: MaterialId,
 }
 
-
 impl ImplicitSurface for Sphere {
     fn impl_f(&self, p: Vec3) -> f32 {
         self.origin.distance_squared(p) - self.radius * self.radius
@@ -123,7 +117,7 @@ pub struct Cube {
 
 impl ImplicitSurface for Cube {
     fn impl_f(&self, p: Vec3) -> f32 {
-        self.size/2.0 - (p - self.origin).abs().max_element()
+        (p - self.origin).abs().max_element() - self.size / 2.0
     }
 
     fn material(&self) -> MaterialId {
@@ -184,12 +178,10 @@ mod tests {
             },
         };
 
-        let hit = sphere.hit(Ray::new(Vec3::ZERO, Vec3::X), 0.0..std::f32::INFINITY);
+        let hit = sphere.hit(Ray::new(Vec3::ZERO, Vec3::X));
         match hit {
             crate::hit::Hit::Hit(h) => {
-                assert!(h
-                    .hit_point
-                    .distance_squared(Vec3::new(0.5, 0., 0.)) < sphere.solv.eps);
+                assert!(h.hit_point.distance_squared(Vec3::new(0.5, 0., 0.)) < sphere.solv.eps);
             }
             crate::hit::Hit::NoHit => panic!("{hit:?}"),
         }

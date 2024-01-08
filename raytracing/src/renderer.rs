@@ -1,3 +1,4 @@
+use bytemuck::{Pod, Zeroable};
 use image::{buffer::EnumeratePixelsMut, Luma, Rgb, Rgb32FImage};
 use rand::distributions::Distribution;
 use rayon::prelude::{ParallelBridge, ParallelIterator};
@@ -39,10 +40,12 @@ struct RayResult {
     depth: f32,
 }
 
+#[derive(Copy, Clone, Pod, Zeroable)]
+#[repr(C)]
 pub struct RenderResult {
-    pub normal: Rgb<f32>,
-    pub albedo: Rgb<f32>,
-    pub color: Rgb<f32>,
+    pub color: [f32; 3],
+    pub normal: [f32; 3],
+    pub albedo: [f32; 3],
     pub depth: f32,
 }
 
@@ -169,9 +172,9 @@ impl Renderer {
         let color = Rgb(ray_results.color.0.map(|x| x.powf(1. / self.options.gamma)));
 
         RenderResult {
-            normal: (0.5 * (1.0 * Vec3::ONE + ray_results.normal)).rgb(),
-            color,
-            albedo: ray_results.albedo,
+            normal: ray_results.normal.to_array(),
+            color: color.0,
+            albedo: ray_results.albedo.0,
             depth: ray_results.depth,
         }
     }
@@ -240,9 +243,9 @@ impl Renderer {
                 let vx = 2. * (p.x as f32 / (self.camera.width - 1) as f32) - 1.;
                 let vy = 1. - 2. * (p.y as f32 / (self.camera.height - 1) as f32);
                 let render_result = self.process_pixel(vx, vy);
-                *p.color = render_result.color;
-                *p.normal = render_result.normal;
-                *p.albedo = render_result.albedo;
+                *p.color = Rgb(render_result.color);
+                *p.normal = Rgb(render_result.normal);
+                *p.albedo = Rgb(render_result.albedo);
                 *p.depth = Luma([render_result.depth as f32]);
                 progress.inc();
             });
@@ -281,7 +284,7 @@ impl Into<Renderer> for DefaultRenderer {
             objects: scene.objects,
             materials: scene.materials,
             options: RendererOptions {
-                samples_per_pixel: 8,
+                samples_per_pixel: 80,
                 diffuse_depth: 20,
                 gamma: 2.2,
                 world_material: MaterialId(5),

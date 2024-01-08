@@ -16,7 +16,7 @@ pub enum Hit<T = BaseHitRecord> {
     NoHit,
 }
 
-pub trait Hittable {
+pub trait Hittable: Send + Sync {
     fn hit(&self, ray: &Ray, range: Range<f64>) -> Hit;
 }
 
@@ -57,5 +57,28 @@ impl Hittable for Sphere {
             };
             Hit::Hit(record)
         }
+    }
+}
+
+pub struct HittableList(pub Vec<Box<dyn Hittable>>);
+
+impl Hittable for HittableList {
+    fn hit(&self, ray: &Ray, range: std::ops::Range<f64>) -> Hit {
+        let start = range.start;
+        let mut end = range.end;
+        let mut res = Hit::NoHit;
+
+        for hittable in self.0.iter() {
+            let range = start..end;
+            if range.is_empty() {
+                return Hit::NoHit;
+            }
+
+            if let Hit::Hit(record) = hittable.hit(ray, range) {
+                end = record.t;
+                res = Hit::Hit(record);
+            }
+        }
+        res
     }
 }

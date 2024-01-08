@@ -6,10 +6,7 @@ use rand::{distributions::Uniform, prelude::Distribution};
 
 use crate::{
     hit::HitRecord,
-    math::{
-        utils::*,
-        vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
-    },
+    math::{vec::{RgbAsVec3Ext, Vec3, RefrReflVecExt, Vec3AsRgbExt}, utils::{UnitBall3PolarMethod, UnitBall3}},
     ray::Ray,
 };
 
@@ -24,7 +21,7 @@ pub struct MaterialDescriptor {
 pub struct MaterialId(pub usize);
 
 pub struct Scattered {
-    pub albedo: Rgb<f64>,
+    pub albedo: Rgb<f32>,
     pub ray_out: Option<Ray>,
 }
 
@@ -33,17 +30,17 @@ pub trait Material: Send + Sync {
 }
 
 /// This function makes sure v and n are opposed by giving back a flipped n if needed
-fn oppose(v: &Vec3, n: &Vec3) -> Vec3 {
+fn oppose(v: Vec3, n: Vec3) -> Vec3 {
     if v.dot(n) >= 0.0 {
         -n
     } else {
-        *n
+        n
     }
 }
 
 /// This function makes sure v is not near zero, returning n if needed
 fn non_zero_or(v: Vec3, n: Vec3) -> Vec3 {
-    if v.near_zero() {
+    if v.length_squared() < 0.01 {
         n
     } else {
         v
@@ -56,13 +53,13 @@ pub struct Diffuse {
 
 impl Material for Diffuse {
     fn scatter(&self, ray: &Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
-        let bounce_noise = Vec3(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
-        let bounce_normal = oppose(&ray.direction, &record.normal);
+        let bounce_noise = Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
+        let bounce_normal = oppose(ray.direction, record.normal);
         let bounce_direction = non_zero_or(bounce_normal + bounce_noise, bounce_normal);
 
         Scattered {
-            ray_out: Some(Ray::new (record.hit_point, bounce_direction)),
-            albedo: self.texture.color(record.uv)
+            ray_out: Some(Ray::new(record.hit_point, bounce_direction)),
+            albedo: self.texture.color(record.uv),
         }
     }
 }
@@ -80,24 +77,24 @@ impl Material for Emit {
     ) -> Scattered {
         Scattered {
             ray_out: None,
-            albedo: self.texture.color(record.uv)
+            albedo: self.texture.color(record.uv),
         }
     }
 }
 
 pub struct Metal {
-    pub roughness: f64,
-    pub texture: Box<dyn Texture>
+    pub roughness: f32,
+    pub texture: Box<dyn Texture>,
 }
 
 impl Material for Metal {
     fn scatter(&self, ray: &Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
-        let ray_direction = -ray.direction.reflect(&record.normal);
+        let ray_direction = -ray.direction.reflect(record.normal);
         let fuziness =
-            self.roughness * Vec3(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
+            self.roughness * Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
         let ray_direction = non_zero_or(ray_direction + fuziness, ray_direction);
 
-        let ray_out = if ray_direction.dot(&record.normal) > 0.0 {
+        let ray_out = if ray_direction.dot(record.normal) > 0.0 {
             Some(Ray::new(record.hit_point, ray_direction))
         } else {
             None
@@ -112,18 +109,18 @@ impl Material for Metal {
 
 pub struct Dielectric {
     pub texture: Box<dyn Texture>,
-    pub ior: f64,
+    pub ior: f32,
     pub invert_normal: bool,
 }
 
 impl Material for Dielectric {
     fn scatter(&self, ray: &Ray, record: &HitRecord, rng: &mut rand::rngs::ThreadRng) -> Scattered {
-        fn reflectance(cos: f64, ref_idx: f64) -> f64 {
+        fn reflectance(cos: f32, ref_idx: f32) -> f32 {
             let r0 = (1. - ref_idx) / (1. + ref_idx);
             let r0 = r0 * r0;
-            r0 + (1. - r0) * f64::powi(1. - cos, 5)
+            r0 + (1. - r0) * f32::powi(1. - cos, 5)
         }
-        
+
         let uniform = Uniform::new(0.0, 1.0);
         let normal = if self.invert_normal {
             -record.normal
@@ -131,19 +128,19 @@ impl Material for Dielectric {
             record.normal
         };
 
-        let cos = ray.direction.dot(&normal);
+        let cos = ray.direction.dot(normal);
 
-        let refracted = ray.direction.refract(&normal, self.ior).and_then(|x| {
+        let refracted = ray.direction.refract(normal, self.ior).and_then(|x| {
             if reflectance(cos, self.ior) > uniform.sample(rng) {
                 None
             } else {
-               Some(x) 
+                Some(x)
             }
         });
         let ray_out = if let Some(refracted) = refracted {
             Ray::new(record.hit_point, refracted)
         } else {
-            Ray::new(record.hit_point, ray.direction.reflect(&normal))
+            Ray::new(record.hit_point, ray.direction.reflect(normal))
         };
         Scattered {
             ray_out: Some(ray_out),
@@ -173,12 +170,12 @@ impl Material for Environment {
         let height = self.environment.height();
         let direction = ray.direction;
         // DOESNT WORKS
-        let x = (width - 1) as f64
-            * (0.5 + f64::atan2(direction.x(), -direction.z()) / std::f64::consts::TAU);
-        let y = (height - 1) as f64 * (0.5 + f64::acos(direction.y()) / std::f64::consts::TAU);
+        let x = (width - 1) as f32
+            * (0.5 + f32::atan2(direction.x, -direction.z) / std::f32::consts::TAU);
+        let y = (height - 1) as f32 * (0.5 + f32::acos(direction.y) / std::f32::consts::TAU);
         let color = self.environment.get_pixel(x as u32, y as u32);
         Scattered {
-            albedo: Rgb(color.0.map(|x| x as f64)),
+            albedo: Rgb(color.0.map(|x| x as f32)),
             ray_out: None,
         }
     }
@@ -188,9 +185,9 @@ impl Material for Environment {
 trait NonRealisticMaterial: Material {}
 
 pub struct Phong {
-    pub ambiant: Rgb<f64>,
-    pub albedo: Rgb<f64>,
-    pub smoothness: f64,
+    pub ambiant: Rgb<f32>,
+    pub albedo: Rgb<f32>,
+    pub smoothness: f32,
     pub light_dir: Vec3,
 }
 
@@ -203,25 +200,25 @@ impl Material for Phong {
         _rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered {
         let light_dir = self.light_dir.normalize();
-        let diffuse = clamp(record.normal.dot(&light_dir)) * Vec3(self.albedo.0);
-        let omega = clamp(-light_dir.reflect(&record.normal).dot(&ray.direction));
+        let diffuse = record.normal.dot(light_dir) * self.albedo.vec();
+        let omega = -light_dir.reflect(record.normal).dot(ray.direction);
         let specular = omega.powf(self.smoothness);
 
-        let color = specular * Vec3::ONES + diffuse + Vec3(self.ambiant.0);
+        let color = specular * Vec3::ONE + diffuse + self.ambiant.vec();
         Scattered {
-            albedo: Rgb(color.0),
+            albedo: color.rgb(),
             ray_out: None,
         }
     }
 }
 
 pub struct Gooch {
-    pub ambiant: Rgb<f64>,
-    pub albedo: Rgb<f64>,
-    pub smoothness: f64,
+    pub ambiant: Rgb<f32>,
+    pub albedo: Rgb<f32>,
+    pub smoothness: f32,
     pub light_dir: Vec3,
-    pub cool: Rgb<f64>,
-    pub warm: Rgb<f64>,
+    pub cool: Rgb<f32>,
+    pub warm: Rgb<f32>,
 }
 
 impl NonRealisticMaterial for Gooch {}
@@ -233,17 +230,17 @@ impl Material for Gooch {
         _rng: &mut rand::rngs::ThreadRng,
     ) -> Scattered {
         let light_dir = self.light_dir.normalize();
-        let gooch_factor = (1. + record.normal.dot(&light_dir)) / 2.;
+        let gooch_factor = (1. + record.normal.dot(light_dir)) / 2.;
         let alpha = 0.4;
         let beta = 0.6;
         let cool = self.cool.vec() + alpha * self.albedo.vec();
         let warm = self.warm.vec() + beta * self.albedo.vec();
         let diffuse = gooch_factor * warm + (1.0 - gooch_factor) * cool;
 
-        let omega = clamp(-light_dir.reflect(&record.normal).dot(&ray.direction));
+        let omega = -light_dir.reflect(record.normal).dot(ray.direction);
         let specular = omega.powf(self.smoothness);
 
-        let color = specular * Vec3::ONES + diffuse + self.ambiant.vec();
+        let color = specular * Vec3::ONE + diffuse + self.ambiant.vec();
         Scattered {
             albedo: color.rgb(),
             ray_out: None,

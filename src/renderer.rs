@@ -7,7 +7,10 @@ use crate::{
     color,
     hit::{Hit, HitRecord, Hittable, HittableList},
     material::{MaterialDescriptor, MaterialId},
-    math::{vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt}, utils::sphere_uv_from_direction},
+    math::{
+        utils::sphere_uv_from_direction,
+        vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
+    },
     progress,
     ray::Ray,
 };
@@ -15,7 +18,7 @@ use crate::{
 pub struct RendererOptions {
     pub samples_per_pixel: u32,
     pub diffuse_depth: u32,
-    pub gamma: f64,
+    pub gamma: f32,
     pub world_material: MaterialId,
 }
 pub struct Renderer {
@@ -29,16 +32,16 @@ pub struct Renderer {
 
 struct RayResult {
     normal: Vec3,
-    albedo: Rgb<f64>,
-    color: Rgb<f64>,
-    depth: f64,
+    albedo: Rgb<f32>,
+    color: Rgb<f32>,
+    depth: f32,
 }
 
 pub struct RenderResult {
-    pub normal: Rgb<f64>,
-    pub albedo: Rgb<f64>,
-    pub color: Rgb<f64>,
-    pub depth: f64,
+    pub normal: Rgb<f32>,
+    pub albedo: Rgb<f32>,
+    pub color: Rgb<f32>,
+    pub depth: f32,
 }
 
 pub struct OutputBuffers {
@@ -106,9 +109,9 @@ where
 }
 
 impl Renderer {
-    pub fn process_pixel(self: &Renderer, vx: f64, vy: f64) -> RenderResult {
-        let pixel_width = 1. / (self.camera.width as f64 - 1.);
-        let pixel_height = 1. / (self.camera.height as f64 - 1.);
+    pub fn process_pixel(self: &Renderer, vx: f32, vy: f32) -> RenderResult {
+        let pixel_width = 1. / (self.camera.width as f32 - 1.);
+        let pixel_height = 1. / (self.camera.height as f32 - 1.);
         let distribution_x = rand::distributions::Uniform::new(0., pixel_width);
         let distribution_y = rand::distributions::Uniform::new(0., pixel_height);
 
@@ -151,7 +154,7 @@ impl Renderer {
                 );
 
             // Then renormalize them
-            let samples = self.options.samples_per_pixel as f64;
+            let samples = self.options.samples_per_pixel as f32;
             RayResult {
                 normal: ray_results_acc.normal / samples,
                 color: (ray_results_acc.color.vec() / samples).rgb(),
@@ -164,7 +167,7 @@ impl Renderer {
         let color = Rgb(ray_results.color.0.map(|x| x.powf(1. / self.options.gamma)));
 
         RenderResult {
-            normal: (0.5*(1.0*Vec3::ONES + ray_results.normal)).rgb(),
+            normal: (0.5 * (1.0 * Vec3::ONE + ray_results.normal)).rgb(),
             color,
             albedo: ray_results.albedo,
             depth: ray_results.depth,
@@ -182,7 +185,7 @@ impl Renderer {
         }
         let mut rng = rand::thread_rng();
 
-        if let Hit::Hit(record) = self.scene.hit(ray, 0.01..f64::INFINITY) {
+        if let Hit::Hit(record) = self.scene.hit(ray, 0.01..f32::INFINITY) {
             let material = &self.materials[record.material.0].material;
             let scattered = material.scatter(ray, &record, &mut rng);
 
@@ -205,7 +208,7 @@ impl Renderer {
                 normal: -ray.direction,
                 t: 0.0,
                 material: self.options.world_material,
-                uv: sphere_uv_from_direction(&-ray.direction),
+                uv: sphere_uv_from_direction(-ray.direction),
             };
             let scattered = material.scatter(ray, &record, &mut rng);
             RayResult {
@@ -232,12 +235,12 @@ impl Renderer {
 
             output_buffer.iter().par_bridge().for_each(|p| {
                 // pixels in the image crate are from left to right, top to bottom
-                let vx = 2. * (p.x as f64 / (self.camera.width - 1) as f64) - 1.;
-                let vy = 1. - 2. * (p.y as f64 / (self.camera.height - 1) as f64);
+                let vx = 2. * (p.x as f32 / (self.camera.width - 1) as f32) - 1.;
+                let vy = 1. - 2. * (p.y as f32 / (self.camera.height - 1) as f32);
                 let render_result = self.process_pixel(vx, vy);
-                *p.color = color::convert_lossy(render_result.color);
-                *p.normal = color::convert_lossy(render_result.normal);
-                *p.albedo = color::convert_lossy(render_result.albedo);
+                *p.color = render_result.color;
+                *p.normal = render_result.normal;
+                *p.albedo = render_result.albedo;
                 *p.depth = Luma([render_result.depth as f32]);
                 progress.inc();
             });

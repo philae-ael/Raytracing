@@ -7,6 +7,7 @@ use crate::{
     ray::Ray,
 };
 
+#[derive(Debug)]
 pub struct HitRecord {
     pub hit_point: Vec3,
     pub normal: Vec3,
@@ -15,13 +16,14 @@ pub struct HitRecord {
     pub uv: Uv,
 }
 
+#[derive(Debug)]
 pub enum Hit {
     Hit(HitRecord),
     NoHit,
 }
 
-pub trait Hittable: Send + Sync {
-    fn hit(&self, ray: &Ray, range: Range<f32>) -> Hit;
+pub trait Hittable {
+    fn hit(&self, ray: Ray, range: Range<f32>) -> Hit;
 }
 
 pub struct Sphere {
@@ -32,7 +34,7 @@ pub struct Sphere {
 }
 
 impl Hittable for Sphere {
-    fn hit(&self, ray: &Ray, range: Range<f32>) -> Hit {
+    fn hit(&self, ray: Ray, range: Range<f32>) -> Hit {
         let a = ray.direction.length_squared();
         let b_half = (ray.origin - self.center).dot(ray.direction);
         let c = (ray.origin - self.center).length_squared() - self.radius * self.radius;
@@ -69,10 +71,10 @@ impl Hittable for Sphere {
     }
 }
 
-pub struct HittableList(pub Vec<Box<dyn Hittable>>);
+pub struct HittableList(pub Vec<Box<dyn Hittable + Sync>>);
 
 impl Hittable for HittableList {
-    fn hit(&self, ray: &Ray, range: std::ops::Range<f32>) -> Hit {
+    fn hit(&self, ray: Ray, range: std::ops::Range<f32>) -> Hit {
         let start = range.start;
         let mut end = range.end;
         let mut res = Hit::NoHit;

@@ -127,7 +127,7 @@ impl Renderer {
                     let dvx = distribution_x.sample(&mut rng);
                     let dvy = distribution_y.sample(&mut rng);
                     self.throw_ray(
-                        &self.camera.ray(vx + dvx, vy + dvy, &mut rng),
+                        self.camera.ray(vx + dvx, vy + dvy, &mut rng),
                         self.options.diffuse_depth,
                     )
                 })
@@ -179,7 +179,7 @@ impl Renderer {
         }
     }
 
-    fn throw_ray(&self, ray: &Ray, depth: u32) -> RayResult {
+    fn throw_ray(&self, ray: Ray, depth: u32) -> RayResult {
         if depth == 0 {
             return RayResult {
                 normal: Vec3::ZERO,
@@ -190,12 +190,12 @@ impl Renderer {
         }
         let mut rng = rand::thread_rng();
 
-        if let Hit::Hit(record) = self.objects.hit(ray, 0.01..f32::INFINITY) {
+        if let Hit::Hit(record) = self.objects.hit(ray.clone(), 0.01..f32::INFINITY) {
             let material = &self.materials[record.material.0].material;
             let scattered = material.scatter(ray, &record, &mut rng);
 
             let color = if let Some(ray_out) = scattered.ray_out {
-                self.throw_ray(&ray_out, depth - 1).color
+                self.throw_ray(ray_out, depth - 1).color
             } else {
                 color::WHITE
             };

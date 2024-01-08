@@ -29,10 +29,7 @@ impl Into<Scene> for DefaultScene {
             MaterialDescriptor {
                 label: Some("Diffuse orange".to_string()),
                 material: Box::new(Diffuse {
-                    texture: Box::new(texture::Checker {
-                        odd: Box::new(texture::Uniform(Rgb([0.8, 0.6, 0.2]))),
-                        even: Box::new(texture::Uniform(Rgb([0., 0., 0.]))),
-                    }),
+                    texture: Box::new(texture::Uniform(Rgb([0.8, 0.6, 0.2]))),
                 }),
             },
             MaterialDescriptor {
@@ -45,7 +42,7 @@ impl Into<Scene> for DefaultScene {
             MaterialDescriptor {
                 label: Some("Ground".to_string()),
                 material: Box::new(Diffuse {
-                    texture: Box::new(texture::Uniform(Rgb([0.2, 0.9, 0.3]))),
+                    texture: Box::new(texture::Uniform(Rgb([0.2, 0.4, 0.3]))),
                 }),
             },
             MaterialDescriptor {
@@ -69,11 +66,16 @@ impl Into<Scene> for DefaultScene {
                 radius: 0.5,
                 material: MaterialId(0),
             }),
-            Box::new(Sphere {
-                label: Some("Diffuse Sphere".to_string()),
-                center: Vec3::new(1.0, 0.0, -1.),
-                radius: 0.5,
-                material: MaterialId(1),
+            Box::new(crate::surface::HittableImplicitSurface {
+                surf: crate::surface::Cube {
+                    origin: Vec3::new(1.0, 0.0, -1.),
+                    size: 0.5,
+                    material: MaterialId(1),
+                },
+                solv: crate::surface::NewtonSolver {
+                    max_step: 2,
+                    eps: 0.01,
+                },
             }),
             Box::new(Sphere {
                 label: Some("Metal Sphere".to_string()),
@@ -81,11 +83,16 @@ impl Into<Scene> for DefaultScene {
                 radius: 0.5,
                 material: MaterialId(2),
             }),
-            Box::new(Sphere {
-                label: Some("Ground".to_string()),
-                center: Vec3::new(0.0, -100.5, -1.),
-                radius: 100.,
-                material: MaterialId(3),
+            Box::new(crate::surface::HittableImplicitSurface {
+                surf: crate::surface::Sphere {
+                    origin: Vec3::new(0.0, -100.5, -1.),
+                    radius: 100.,
+                    material: MaterialId(3),
+                },
+                solv: crate::surface::NewtonSolver {
+                    max_step: 2,
+                    eps: 0.01,
+                },
             }),
             Box::new(Sphere {
                 label: Some("Light".to_string()),

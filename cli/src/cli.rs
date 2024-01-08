@@ -24,7 +24,7 @@ pub struct Cli {
 impl Cli {
     pub fn new(args: Args) -> Result<Self> {
         let outputs: HashSet<AvailableOutput> = HashSet::from_iter(args.output.into_iter());
-        let tile_size = 20;
+        let tile_size = 32;
 
         let mut this = Self {
             streaming_outputs: Vec::new(),

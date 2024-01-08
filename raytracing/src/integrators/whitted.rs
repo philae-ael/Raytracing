@@ -3,7 +3,6 @@ use std::f32::INFINITY;
 use glam::Vec3;
 
 use crate::{
-    counter,
     material::MaterialDescriptor,
     math::vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
@@ -24,8 +23,6 @@ impl Integrator for WhittedIntegrator {
         }
 
         let mut ray_depth = (depth + 1) as f32;
-
-        counter!("ray cast");
 
         let IntersectionResult::Instersection(intersection)= renderer.objects.intersection_full(ray) else {return self.sky_ray(renderer, ray);};
 

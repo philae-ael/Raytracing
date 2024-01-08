@@ -1,6 +1,8 @@
 pub use glam::Vec3;
 use image::Rgb;
 
+use crate::utils::log_once::warn_once;
+
 pub trait RgbAsVec3Ext {
     fn vec(&self) -> Vec3;
 }
@@ -31,23 +33,18 @@ impl RefrReflVecExt for Vec3 {
         self - (2.0 * self.dot(normal) * normal)
     }
 
-    fn refract(self, mut normal: Vec3, ior: f32) -> Option<Vec3> {
-        let mut cosi = self.dot(normal);
-        let mut etai = 1.;
-        let mut etat = ior;
-        if cosi < 0.0 {
-            cosi = -cosi;
-        } else {
-            (etat, etai) = (etai, etat);
-            normal = -normal;
+    fn refract(self, normal: Vec3, ior: f32) -> Option<Vec3> {
+        let cosi = self.dot(normal);
+        if cosi > 0.0 {
+            warn_once!("Error during refraction: Normal and vector should be in opposite direction. They are in the same direction.");
         }
-        let eta = etai / etat;
-        let k = 1. - eta * eta * (1. - cosi * cosi);
 
-        if k < 0. {
+        let k = ior * ior * (1. - cosi * cosi);
+
+        if k > 1. {
             None
         } else {
-            Some(eta * self + (eta * cosi - f32::sqrt(k)) * normal)
+            Some(ior * (self - cosi * normal) - f32::sqrt(1. - k) * normal)
         }
     }
 }

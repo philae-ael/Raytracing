@@ -1,8 +1,9 @@
 use glam::Vec3;
+use image::Rgb;
 
 use crate::{
-    color,
-    material::{dielectric::Dielectric, texture, Diffuse, MaterialDescriptor},
+    material::{dielectric::Dielectric, texture, Diffuse, Emit, MaterialDescriptor, MixMaterial},
+    math::vec::Vec3AsRgbExt,
     scene::Scene,
     shape::Sphere,
 };
@@ -14,30 +15,57 @@ impl From<SpheresScene> for Scene {
         let diffuse = scene.insert_material(MaterialDescriptor {
             label: None,
             material: Box::new(Diffuse {
-                texture: Box::new(texture::Uniform(color::BLUE)),
+                texture: Box::new(texture::Uniform(Rgb([0.2, 0.9, 0.7]))),
+            }),
+        });
+        let diffuse2 = scene.insert_material(MaterialDescriptor {
+            label: None,
+            material: Box::new(Diffuse {
+                texture: Box::new(texture::Uniform(Rgb([0.2, 0.3, 0.7]))),
             }),
         });
         let glass = scene.insert_material(MaterialDescriptor {
             label: None,
             material: Box::new(Dielectric {
-                texture: Box::new(texture::Uniform(color::WHITE)),
-                ior: 0.9,
-                invert_normal: false,
+                texture: Box::new(texture::Uniform(Rgb([1.0, 1.0, 1.0]))),
+                ior: 1.5,
+            }),
+        });
+        let light = scene.insert_material(MaterialDescriptor {
+            label: None,
+            material: Box::new(MixMaterial {
+                p: 0.2,
+                mat1: Emit {
+                    texture: Box::new(texture::Uniform(Vec3::splat(15.0).rgb())),
+                },
+                mat2: Diffuse {
+                    texture: Box::new(texture::Uniform(Rgb([0.4, 0.5, 0.3]))),
+                },
             }),
         });
 
         scene.insert_object(Sphere {
-            center: Vec3::new(0.0, 0.4, -1.0),
-            radius: 0.5,
+            center: Vec3::new(0.0, 0.2, -1.5),
+            radius: 0.3,
             material: diffuse,
         });
         scene.insert_object(Sphere {
-            center: Vec3::new(0.0, 0.0, -0.7),
-            radius: 0.3,
+            center: Vec3::new(0.0, -0.1, -0.3),
+            radius: 0.1,
             material: glass,
+        });
+        scene.insert_object(Sphere {
+            center: Vec3::new(0.0, -1000.2, 0.0),
+            radius: 1000.0,
+            material: diffuse2,
         });
 
         scene.insert_light(Vec3::new(0.0, 0.2, -0.1));
+        scene.insert_object(Sphere {
+            center: Vec3::new(3.3, 3.3, 1.2),
+            radius: 3.0,
+            material: light,
+        });
         scene
     }
 }

@@ -29,6 +29,6 @@ pub fn format_elapsed(elapsed: std::time::Duration) -> String {
         let h = elapsed_hours as u32;
         let m = (elapsed_minutes % 60.0) as u32;
         let s = (elapsed_secs % 60.0) as u32;
-        format!("{h}H{m}m{s}s")
+        format!("{h}h{m}m{s}s")
     }
 }

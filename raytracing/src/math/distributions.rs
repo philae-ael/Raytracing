@@ -1,9 +1,6 @@
 use std::marker::PhantomData;
 
-use rand::{
-    distributions::{Distribution, Uniform},
-    Rng,
-};
+use rand::{distributions::Uniform, prelude::Distribution, Rng};
 
 use crate::material::texture::Uv;
 

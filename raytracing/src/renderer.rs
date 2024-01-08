@@ -257,7 +257,7 @@ impl Into<Renderer> for DefaultRenderer {
         let sky_mat = scene.insert_material(MaterialDescriptor {
             label: Some("Sky".to_owned()),
             material: Box::new(Emit {
-                texture: Box::new(Uniform(Rgb([0.2, 0.2, 0.2]))),
+                texture: Box::new(Uniform(Vec3::splat(0.3).rgb())),
             }),
         });
 

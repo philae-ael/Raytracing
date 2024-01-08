@@ -14,16 +14,19 @@ impl Camera {
     pub fn new(
         width: u32,
         height: u32,
-        viewport_height: f64,
+        vfov: f64,
         focal_length: f64,
         origin: Vec3,
     ) -> Self {
+        let theta = vfov;
+        let h = f64::tan(theta/2.);
+
         let aspect_ratio = width as f64 / height as f64;
         Self {
             width,
             height,
-            viewport_height,
-            viewport_width: viewport_height*aspect_ratio,
+            viewport_height: 2.0*h,
+            viewport_width: 2.0*h*aspect_ratio,
             focal_length,
             center: origin - focal_length * Vec3::Z,
             origin,

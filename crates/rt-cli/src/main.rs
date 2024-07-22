@@ -1,7 +1,11 @@
+#![feature(new_uninit)]
+#![feature(maybe_uninit_slice)]
+
 mod cli;
 mod output;
 mod progress;
 mod renderer;
+mod storage;
 
 use std::{fmt::Display, str::FromStr};
 
@@ -59,7 +63,6 @@ impl From<AvailableScene> for Scene {
 pub enum AvailableOutput {
     #[default]
     Tev,
-    SDL2,
     File,
 }
 
@@ -90,7 +93,9 @@ impl std::str::FromStr for Dimensions {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut split_it = s.split('x');
-        let (Some(a), Some(b)) = (split_it.next(), split_it.next()) else {return Err(anyhow::anyhow!("Incorrect format, see help"));};
+        let (Some(a), Some(b)) = (split_it.next(), split_it.next()) else {
+            return Err(anyhow::anyhow!("Incorrect format, see help"));
+        };
         let width: u32 = a.parse()?;
         let height: u32 = b.parse()?;
 
@@ -134,6 +139,9 @@ pub struct Args {
 
     #[arg(long)]
     no_threads: bool,
+
+    #[arg(long)]
+    tile_size: Option<u32>,
 }
 
 fn main() -> anyhow::Result<()> {

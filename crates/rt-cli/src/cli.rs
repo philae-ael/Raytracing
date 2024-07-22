@@ -1,16 +1,16 @@
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
 
 use anyhow::Result;
 use rt::utils::{counter, timer::timed_scope_log};
 
 use crate::{
-    output::{FileOutput, SDL2Streaming, TevStreaming},
-    renderer::{OutputBuffers, TileMsg, Renderer, RendererCreateInfo},
+    output::{FileOutput, TevStreaming},
+    renderer::{OutputBuffers, Renderer, RendererCreateInfo, TileMsg},
     Args, AvailableOutput,
 };
 
 pub trait StreamingOutput: Send {
-    fn send_msg(&mut self, msg: Arc<TileMsg>) -> Result<()>;
+    fn send_msg(&mut self, msg: &TileMsg) -> Result<()>;
 }
 pub trait FinalOutput: Send {
     fn commit(&self, output_buffers: &OutputBuffers) -> Result<()>;
@@ -32,7 +32,7 @@ impl Cli {
                 .unwrap();
         }
 
-        let outputs: HashSet<AvailableOutput> = HashSet::from_iter(args.output.into_iter());
+        let outputs: HashSet<AvailableOutput> = HashSet::from_iter(args.output);
         let tile_size = 32;
 
         let mut this = Self {
@@ -43,28 +43,25 @@ impl Cli {
                 spp: args.sample_per_pixel,
                 tile_size,
                 scene: args.scene.into(),
-                shuffle_tiles: false,
                 integrator: args.integrator.into(),
                 allowed_error: args.allowed_error,
             }),
         };
 
-        if outputs.contains(&AvailableOutput::Tev) {
-            this.streaming_outputs.push(Box::new(TevStreaming::new(
-                args.dimensions,
-                tile_size,
-                args.tev_path,
-                args.tev_hostname,
-            )?));
-        }
-
-        if outputs.contains(&AvailableOutput::SDL2) {
-            this.streaming_outputs
-                .push(Box::new(SDL2Streaming::new(args.dimensions, tile_size)));
-        }
-
-        if outputs.contains(&AvailableOutput::File) {
-            this.final_outputs.push(Box::new(FileOutput::new()));
+        for o in outputs {
+            match o {
+                AvailableOutput::Tev => {
+                    this.streaming_outputs.push(Box::new(TevStreaming::new(
+                        args.dimensions,
+                        tile_size,
+                        args.tev_path.clone(),
+                        args.tev_hostname.clone(),
+                    )?));
+                }
+                AvailableOutput::File => {
+                    this.final_outputs.push(Box::new(FileOutput::new()));
+                }
+            }
         }
 
         Ok(this)
@@ -74,14 +71,16 @@ impl Cli {
         let output_buffers = timed_scope_log("Run tile renderer", || {
             self.renderer.run(|msg| {
                 let mut outputs = Vec::new();
-                // Move tev_cli out of self, work with it and move it back in self
-                std::mem::swap(&mut self.streaming_outputs, &mut outputs);
 
+                // Allow for dropping them as needed
+                std::mem::swap(&mut self.streaming_outputs, &mut outputs);
                 for mut output in outputs.drain(..) {
-                    match output.send_msg(msg.clone()) {
+                    match output.send_msg(&msg) {
                         Ok(_) => self.streaming_outputs.push(output),
                         Err(err) => {
-                            log::error!("Streaming output errored, it will not be used anymore: {err}");
+                            log::error!(
+                                "Streaming output errored, it will not be used anymore: {err}"
+                            );
                         }
                     }
                 }

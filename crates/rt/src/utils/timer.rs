@@ -21,6 +21,7 @@ impl<T> DerefMut for TimedResult<T> {
 
 pub fn timed_scope<R, F: FnOnce() -> R>(f: F) -> TimedResult<R> {
     let begin = std::time::Instant::now();
+
     let res = f();
 
     let elapsed = begin.elapsed();

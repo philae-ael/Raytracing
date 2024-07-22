@@ -149,6 +149,20 @@ impl<RgbStorage, LumaStorage> GenericRenderResult<RgbStorage, LumaStorage> {
     }
 }
 
+impl<T: Copy, L: Copy> Copy for GenericRenderResult<T, L> {}
+impl<T: Clone, L: Clone> Clone for GenericRenderResult<T, L> {
+    fn clone(&self) -> Self {
+        Self {
+            color: self.color.clone(),
+            position: self.position.clone(),
+            normal: self.normal.clone(),
+            albedo: self.albedo.clone(),
+            z: self.z.clone(),
+            ray_depth: self.ray_depth.clone(),
+        }
+    }
+}
+
 pub type PixelRenderResult = GenericRenderResult<Rgb, Luma>;
 
 impl<RgbStorage, LumaStorage> IntoIterator for GenericRenderResult<RgbStorage, LumaStorage> {
@@ -169,30 +183,17 @@ impl<RgbStorage, LumaStorage> IntoIterator for GenericRenderResult<RgbStorage, L
     }
 }
 
-impl Clone for PixelRenderResult {
-    fn clone(&self) -> Self {
-        Self {
-            color: self.color,
-            position: self.position,
-            normal: self.normal,
-            albedo: self.albedo,
-            z: self.z,
-            ray_depth: self.ray_depth,
-        }
-    }
-}
-impl std::marker::Copy for PixelRenderResult {}
-
-/// SAFETY:  needed because we can't derive Pod and Zeroable for all GenericRenderResult
-/// - PixelRenderResult is Zeroable,
-/// - all bits patterns are valid,
+/// SAFETY:
+/// - GenericRenderResult is Zeroable as T and L are,
+/// - all bits patterns are valid as all are valid for T and L,
 /// - all his fields are pods,
 /// - it is repr(C),
 /// - there is no interior mutability
-unsafe impl Pod for PixelRenderResult {}
-
-/// SAFETY:  PixelRenderResult is inhabited and the all-zero pattern is allowed
-unsafe impl Zeroable for PixelRenderResult {}
+unsafe impl<T: Pod, L: Pod> Pod for GenericRenderResult<T, L> {}
+///
+/// SAFETY:
+/// GenericRenderResult is inhabited and the all-zero pattern is allowed as they are valid for T and L
+unsafe impl<T: Zeroable, L: Zeroable> Zeroable for GenericRenderResult<T, L> {}
 
 pub struct World {
     pub objects: Box<dyn Shape>,

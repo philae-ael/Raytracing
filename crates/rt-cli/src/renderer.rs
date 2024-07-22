@@ -1,9 +1,6 @@
 use std::{
     io::Write,
-    sync::{
-        mpsc::{channel, Receiver, Sender},
-        Arc,
-    },
+    sync::mpsc::{channel, Receiver},
 };
 
 use crate::{Dimensions, Spp};
@@ -11,28 +8,28 @@ use crate::{Dimensions, Spp};
 use super::progress;
 
 use image::{ImageBuffer, Rgb32FImage};
-use rand::{distributions, seq::SliceRandom};
-use rand::{prelude::Distribution, thread_rng};
+use rand::distributions;
+use rand::prelude::Distribution;
 use rayon::prelude::{
     IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 use rt::{
     camera::{Camera, PixelCoord, ViewportCoord},
+    color::{Luma, Rgb},
     integrators::Integrator,
     math::{point::Point, quaternion::LookAt, vec::Vec3},
-    renderer::{Channel, GenericRenderResult, PixelRenderResult, RaySeries, World},
+    renderer::{GenericRenderResult, PixelRenderResult, RaySeries, World},
     utils::counter::counter,
 };
 
 use itertools::Itertools;
 use rt::scene::Scene;
 
-use anyhow::Result;
-
 enum Message {
-    Tile(Arc<TileMsg>),
+    Tile(TileMsg),
     Stop,
 }
+
 pub struct TileMsg {
     pub tile_x: u32,
     pub tile_y: u32,
@@ -54,7 +51,6 @@ pub struct RendererCreateInfo {
     pub spp: Spp,
     pub tile_size: u32,
     pub scene: Scene,
-    pub shuffle_tiles: bool,
     pub integrator: Box<dyn Integrator>,
     pub allowed_error: Option<f32>,
 }
@@ -62,7 +58,6 @@ pub struct RendererCreateInfo {
 pub struct Renderer {
     pub dimension: Dimensions,
     pub tile_size: u32,
-    pub shuffle_tiles: bool,
 
     pub samples_per_pixel: Spp,
     pub allowed_error: Option<f32>,
@@ -75,6 +70,20 @@ pub struct Renderer {
 
 type Luma32FImage = image::ImageBuffer<image::Luma<f32>, Vec<f32>>;
 pub type OutputBuffers = GenericRenderResult<Rgb32FImage, Luma32FImage>;
+
+trait OutputBuffersExt<T, L> {
+    fn convert(&mut self, d: GenericRenderResult<T, L>, x: u32, y: u32);
+}
+impl OutputBuffersExt<Rgb, Luma> for OutputBuffers {
+    fn convert(&mut self, d: PixelRenderResult, x: u32, y: u32) {
+        *self.color.get_pixel_mut(x, y) = d.color.to_srgb().into();
+        *self.normal.get_pixel_mut(x, y) = d.normal.to_srgb().into();
+        *self.albedo.get_pixel_mut(x, y) = d.albedo.to_srgb().into();
+        *self.position.get_pixel_mut(x, y) = d.position.to_srgb().into();
+        *self.z.get_pixel_mut(x, y) = d.z.into();
+        *self.ray_depth.get_pixel_mut(x, y) = d.ray_depth.into();
+    }
+}
 
 impl Renderer {
     pub fn new(tile_create_info: RendererCreateInfo) -> Self {
@@ -99,7 +108,6 @@ impl Renderer {
             dimension: tile_create_info.dimension,
             samples_per_pixel: tile_create_info.spp,
             tile_size: tile_create_info.tile_size,
-            shuffle_tiles: tile_create_info.shuffle_tiles,
             allowed_error: tile_create_info.allowed_error,
             integrator: tile_create_info.integrator,
             world: World::from_scene(tile_create_info.scene),
@@ -107,7 +115,7 @@ impl Renderer {
         }
     }
 
-    pub fn run<F: FnMut(Arc<TileMsg>) + Send>(
+    pub fn run<F: FnMut(TileMsg) + Send>(
         self,
         on_tile_rendered: F,
     ) -> anyhow::Result<OutputBuffers> {
@@ -130,33 +138,7 @@ impl Renderer {
 
             for i in 0..width {
                 for j in 0..height {
-                    let data_index = (i + width * j) as usize;
-                    for channel in msg.data[data_index] {
-                        match channel {
-                            Channel::Color(c) => {
-                                *output_buffers.color.get_pixel_mut(x + i, y + j) =
-                                    c.to_srgb().into()
-                            }
-                            Channel::Normal(c) => {
-                                *output_buffers.normal.get_pixel_mut(x + i, y + j) =
-                                    c.to_srgb().into()
-                            }
-                            Channel::Albedo(c) => {
-                                *output_buffers.albedo.get_pixel_mut(x + i, y + j) =
-                                    c.to_srgb().into()
-                            }
-                            Channel::Position(c) => {
-                                *output_buffers.position.get_pixel_mut(x + i, y + j) =
-                                    c.to_srgb().into()
-                            }
-                            Channel::Z(c) => {
-                                *output_buffers.z.get_pixel_mut(x + i, y + j) = c.into()
-                            }
-                            Channel::RayDepth(c) => {
-                                *output_buffers.ray_depth.get_pixel_mut(x + i, y + j) = c.into()
-                            }
-                        }
-                    }
+                    output_buffers.convert(msg.data[(i + width * j) as usize], x + i, y + j);
                 }
             }
         };
@@ -172,7 +154,7 @@ impl Renderer {
         let mut tiles_data = Vec::new();
         tiles_data.resize_with((tile_count_x * tile_count_y) as usize, || None);
 
-        let generation_result: Result<()> = rayon::scope(|s| {
+        let generation_result = rayon::scope(|s| {
             let (tx, rx) = channel();
 
             log::info!("Generating image...");
@@ -200,70 +182,55 @@ impl Renderer {
                 println!("\r{progress}");
             });
 
-            let mut tiles_indices = (0..tile_count_x)
+            let tiles_indices = (0..tile_count_x)
                 .cartesian_product(0..tile_count_y)
                 .collect::<Vec<_>>();
 
-            // reorder them if needed
-            if self.shuffle_tiles {
-                tiles_indices.shuffle(&mut thread_rng());
-            }
+            let mut dispatch = |sample_count| {
+                tiles_indices
+                    .par_iter()
+                    .copied()
+                    .zip(tiles_data.par_iter_mut())
+                    .map(|((tile_x, tile_y), data)| {
+                        self.tile_worker((tile_x, tile_y), data, sample_count);
+                        progress.add(sample_count as usize);
 
-            let process_sample_batch =
-                |(tx, sample_count): &mut (Sender<Message>, u32),
-                 ((tile_x, tile_y), data): ((u32, u32), &mut Option<Vec<RaySeries>>)|
-                 -> Result<()> {
-                    self.tile_worker((tile_x, tile_y), data, *sample_count);
-                    progress.add(*sample_count as usize);
+                        TileMsg {
+                            tile_x,
+                            tile_y,
+                            data: data
+                                .as_ref()
+                                .unwrap()
+                                .iter()
+                                .map(|x| x.as_pixelresult())
+                                .collect::<Vec<_>>(),
+                        }
+                    })
+                    .try_for_each_init(
+                        || tx.clone(),
+                        |tx, msg: TileMsg| tx.send(Message::Tile(msg)),
+                    )
+            };
 
-                    // Broadcast results to the thread which is in charge
-                    tx.send(Message::Tile(Arc::new(TileMsg {
-                        tile_x,
-                        tile_y,
-                        data: data
-                            .as_ref()
-                            .unwrap()
-                            .iter()
-                            .map(|x| x.as_pixelresult())
-                            .collect::<Vec<_>>(),
-                    })))?;
-
-                    Ok(())
-                };
-
-            let samples_per_batch = 32;
-            // Dispatch work
+            let sample_batch_size = 32;
             match self.samples_per_pixel {
                 Spp::Spp(s) => {
                     let mut samples_to_do = s;
                     while samples_to_do > 0 {
                         // Samples for this iteration
-                        let samples = u32::min(samples_per_batch, samples_to_do);
+                        let samples = u32::min(sample_batch_size, samples_to_do);
                         samples_to_do -= samples;
 
-                        tiles_indices
-                            .par_iter()
-                            .copied()
-                            .zip(tiles_data.par_iter_mut())
-                            .try_for_each_with((tx.clone(), samples), process_sample_batch)?;
+                        dispatch(samples)?;
                     }
                 }
                 Spp::Inf => {
                     for _sample_batch in 0.. {
-                        tiles_indices
-                            .par_iter()
-                            .copied()
-                            .zip(tiles_data.par_iter_mut())
-                            .try_for_each_with(
-                                (tx.clone(), samples_per_batch),
-                                process_sample_batch,
-                            )?;
+                        dispatch(sample_batch_size)?;
                     }
                 }
             };
-
-            tx.send(Message::Stop)?;
-            Ok(())
+            tx.send(Message::Stop)
         });
 
         match generation_result {
@@ -306,7 +273,7 @@ impl Renderer {
             }
         }
 
-        log::debug!("Tile {tile_x} {tile_y} done !");
+        log::trace!("Tile {tile_x} {tile_y} done !");
     }
 
     fn pixel_worker(&self, coords: PixelCoord, samples: u32) -> RaySeries {

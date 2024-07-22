@@ -1,9 +1,21 @@
 use std::marker::PhantomData;
 
+use bytemuck::{Pod, Zeroable};
+
 pub mod colorspace;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct Color<S: colorspace::Colorspace>(pub [f32; 3], PhantomData<S>);
+
+impl<S: colorspace::Colorspace> Copy for Color<S> {}
+impl<S: colorspace::Colorspace> Clone for Color<S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+unsafe impl<S: colorspace::Colorspace> Zeroable for Color<S> {}
+unsafe impl<S: colorspace::Colorspace + 'static> Pod for Color<S> {}
 
 impl<S: colorspace::Colorspace> Color<S> {
     pub const fn from_array(arr: [f32; 3]) -> Self {
@@ -47,7 +59,8 @@ impl Rgb {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
 pub struct Luma(pub f32);
 
 impl<S: colorspace::Colorspace> From<Color<S>> for Luma {

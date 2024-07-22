@@ -19,6 +19,7 @@ impl Counter {
     }
 }
 
+#[derive(Default)]
 pub struct CounterU64 {
     atomic: AtomicU64,
 }
@@ -38,10 +39,12 @@ impl CounterU64 {
         format!("{}", self.value())
     }
 }
+#[derive(Default)]
 pub struct CounterTime {
     // Note: can only store up to 213503 days of duration or 564 years
     nanos: AtomicU64,
 }
+
 impl CounterTime {
     pub const fn new() -> Self {
         Self {
@@ -82,7 +85,7 @@ pub fn insert_counter(descr: &'static str, counter: Counter) -> Arc<Counter> {
 macro_rules! counter {
     ($descr:literal) => {
         if cfg!(feature = "counter") {
-            use $crate::utils::counter::{insert_counter, Counter, CounterU64, lazy_static};
+            use $crate::utils::counter::{insert_counter, lazy_static, Counter, CounterU64};
             lazy_static::lazy_static! {
                 static ref COUNTER_REF: std::sync::Arc<Counter> = {
                     insert_counter($descr, Counter::CounterU64(CounterU64::new()))

@@ -132,6 +132,29 @@ impl Renderer {
             ray_depth: ImageBuffer::new(width, height),
         };
 
+        let tile_count_x = (width as f32 / tile_size as f32).ceil() as u32;
+        let tile_count_y = (height as f32 / tile_size as f32).ceil() as u32;
+
+        let progress = match self.samples_per_pixel {
+            Spp::Spp(s) => progress::Progress::new((s * tile_count_x * tile_count_y) as usize),
+            Spp::Inf => progress::Progress::new_inf(),
+        };
+
+        let mut tiles_data: Vec<Vec<RaySeries>> = (0..tile_count_x)
+            .cartesian_product(0..tile_count_y)
+            .map(|(tile_x, tile_y)| {
+                let x_range = (tile_x * self.tile_size)
+                    ..((tile_x + 1) * self.tile_size).min(self.dimension.width);
+                let y_range = (tile_y * self.tile_size)
+                    ..((tile_y + 1) * self.tile_size).min(self.dimension.height);
+                let tile_width = x_range.len();
+                let tile_height = y_range.len();
+                let mut c = Vec::new();
+                c.resize_with(tile_width * tile_height, Default::default);
+                c
+            })
+            .collect();
+
         let mut push_tile_on_output_buffers = |msg: &TileMsg| {
             let (x, y, width, height) =
                 msg.tile_bounds(self.tile_size, self.dimension.height, self.dimension.width);
@@ -142,17 +165,6 @@ impl Renderer {
                 }
             }
         };
-
-        let tile_count_x = (width as f32 / tile_size as f32).ceil() as u32;
-        let tile_count_y = (height as f32 / tile_size as f32).ceil() as u32;
-
-        let progress = match self.samples_per_pixel {
-            Spp::Spp(s) => progress::Progress::new((s * tile_count_x * tile_count_y) as usize),
-            Spp::Inf => progress::Progress::new_inf(),
-        };
-
-        let mut tiles_data = Vec::new();
-        tiles_data.resize_with((tile_count_x * tile_count_y) as usize, || None);
 
         let generation_result = rayon::scope(|s| {
             let (tx, rx) = channel();
@@ -198,12 +210,7 @@ impl Renderer {
                         TileMsg {
                             tile_x,
                             tile_y,
-                            data: data
-                                .as_ref()
-                                .unwrap()
-                                .iter()
-                                .map(|x| x.as_pixelresult())
-                                .collect::<Vec<_>>(),
+                            data: data.iter().map(|x| x.as_pixelresult()).collect::<Vec<_>>(),
                         }
                     })
                     .try_for_each_init(
@@ -241,33 +248,18 @@ impl Renderer {
         Ok(output_buffers)
     }
 
-    fn tile_worker(
-        &self,
-        (tile_x, tile_y): (u32, u32),
-        data: &mut Option<Vec<RaySeries>>,
-        sample_count: u32,
-    ) {
+    fn tile_worker(&self, (tile_x, tile_y): (u32, u32), data: &mut [RaySeries], sample_count: u32) {
         let x_range =
             (tile_x * self.tile_size)..((tile_x + 1) * self.tile_size).min(self.dimension.width);
         let y_range =
             (tile_y * self.tile_size)..((tile_y + 1) * self.tile_size).min(self.dimension.height);
         let tile_width = x_range.len();
-        let tile_height = y_range.len();
-
-        let tile_data = if let Some(ref mut tile) = data {
-            tile
-        } else {
-            let mut tile_data = Vec::new();
-            tile_data.resize_with(tile_width * tile_height, RaySeries::default);
-            *data = Some(tile_data);
-            data.as_mut().unwrap()
-        };
 
         for (j, y) in y_range.enumerate() {
             for (i, x) in x_range.clone().enumerate() {
                 let index = j * tile_width + i;
-                tile_data[index] = RaySeries::merge(
-                    std::mem::take(&mut tile_data[index]),
+                data[index] = RaySeries::merge(
+                    std::mem::take(&mut data[index]),
                     self.pixel_worker(PixelCoord { x, y }, sample_count),
                 );
             }

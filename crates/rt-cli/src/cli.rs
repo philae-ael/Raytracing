@@ -5,13 +5,21 @@ use rt::utils::{counter, timer::timed_scope_log};
 
 use crate::{
     output::{FileOutput, TevStreaming},
-    renderer::{OutputBuffers, Renderer, RendererCreateInfo, TileMsg},
+    executor::{OutputBuffers, Executor, ExecutorBuilder, TileMsg},
     Args, AvailableOutput,
 };
 
 pub trait StreamingOutput: Send {
     fn send_msg(&mut self, msg: &TileMsg) -> Result<()>;
 }
+
+struct DummyOutput {}
+impl StreamingOutput for DummyOutput {
+    fn send_msg(&mut self, _msg: &TileMsg) -> Result<()> {
+        Ok(())
+    }
+}
+
 pub trait FinalOutput: Send {
     fn commit(&self, output_buffers: &OutputBuffers) -> Result<()>;
 }
@@ -19,7 +27,7 @@ pub trait FinalOutput: Send {
 pub struct Cli {
     pub streaming_outputs: Vec<Box<dyn StreamingOutput>>,
     pub final_outputs: Vec<Box<dyn FinalOutput>>,
-    pub renderer: Renderer,
+    pub renderer: Executor,
 }
 impl Cli {
     pub fn new(args: Args) -> Result<Self> {
@@ -35,17 +43,21 @@ impl Cli {
         let outputs: HashSet<AvailableOutput> = HashSet::from_iter(args.output);
         let tile_size = 32;
 
+        let renderer = {
+            let mut renderer = ExecutorBuilder::default()
+                .dimensions(args.dimensions)
+                .spp(args.sample_per_pixel)
+                .allowed_error(args.allowed_error);
+            if let Some(tile_size) = args.tile_size {
+                renderer = renderer.tile_size(tile_size);
+            }
+            renderer.build(args.integrator.into(), args.scene.into())
+        };
+
         let mut this = Self {
             streaming_outputs: Vec::new(),
             final_outputs: Vec::new(),
-            renderer: Renderer::new(RendererCreateInfo {
-                dimension: args.dimensions,
-                spp: args.sample_per_pixel,
-                tile_size,
-                scene: args.scene.into(),
-                integrator: args.integrator.into(),
-                allowed_error: args.allowed_error,
-            }),
+            renderer,
         };
 
         for o in outputs {
@@ -70,20 +82,17 @@ impl Cli {
     pub fn run(mut self) -> Result<()> {
         let output_buffers = timed_scope_log("Run tile renderer", || {
             self.renderer.run(|msg| {
-                let mut outputs = Vec::new();
-
-                // Allow for dropping them as needed
-                std::mem::swap(&mut self.streaming_outputs, &mut outputs);
-                for mut output in outputs.drain(..) {
-                    match output.send_msg(&msg) {
-                        Ok(_) => self.streaming_outputs.push(output),
+                self.streaming_outputs
+                    .iter_mut()
+                    .for_each(|output| match output.send_msg(&msg) {
+                        Ok(_) => (),
                         Err(err) => {
                             log::error!(
                                 "Streaming output errored, it will not be used anymore: {err}"
                             );
+                            *output = Box::new(DummyOutput {});
                         }
-                    }
-                }
+                    });
             })
         })
         .res?;

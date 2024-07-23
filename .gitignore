@@ -3,3 +3,6 @@ output/hdr
 out_old.*
 HDRI
 tev.exe
+perf.data*
+gecko_profile.json
+flamegraph.svg

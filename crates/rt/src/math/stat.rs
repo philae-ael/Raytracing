@@ -4,38 +4,48 @@ use crate::color::Rgb;
 /// It is used to get an easy access to mean, variance and
 #[derive(Default)]
 pub struct SampleSeries {
-    samples: Vec<f32>,
+    count: usize,
+    sum: f32,
+    sqsum: f32,
 }
 
 impl SampleSeries {
     pub fn new() -> Self {
-        Self { samples: vec![] }
+        Self {
+            count: 0,
+            sum: 0.0,
+            sqsum: 0.0,
+        }
     }
     pub fn add_sample(&mut self, sample: f32) {
-        self.samples.push(sample)
+        self.count += 1;
+        self.sum += sample;
+        self.sqsum += sample * sample;
     }
-    pub fn merge(lhs: Self, mut rhs: Self) -> Self {
-        let mut samples = lhs.samples;
-        samples.append(&mut rhs.samples);
-        Self { samples }
+    pub fn merge(lhs: Self, rhs: Self) -> Self {
+        Self {
+            count: lhs.count + rhs.count,
+            sum: lhs.sum + rhs.sum,
+            sqsum: lhs.sqsum + rhs.sqsum,
+        }
     }
 
     pub fn mean(&self) -> f32 {
-        self.samples.iter().fold(0.0, |acc, sample| acc + sample) / self.samples.len() as f32
+        self.sum / self.count as f32
     }
 
     pub fn variance(&self) -> f32 {
         let mean = self.mean();
-        self.samples
-            .iter()
-            .fold(0.0, |acc, sample| acc + (sample - mean).powi(2))
+        let sqmean = self.sqsum / self.count as f32;
+
+        sqmean - mean * mean
     }
 
     /// returns the estimated error supposing that the distribution follows a standard distribution,
     /// with a confidence of 95%
     /// If there is not enough samples, return None
     pub fn error_with_95_confidence(&self) -> Option<f32> {
-        let n = self.samples.len();
+        let n = self.count;
 
         if n < 15 {
             return None;

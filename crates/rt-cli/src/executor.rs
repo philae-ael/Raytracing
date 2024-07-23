@@ -3,15 +3,18 @@ use std::{
     sync::mpsc::{channel, Receiver},
 };
 
-use crate::{Dimensions, Spp};
+use crate::{
+    tile::{Tile, Tiler},
+    Dimensions, Spp,
+};
 
 use super::progress;
 
 use image::{ImageBuffer, Rgb32FImage};
 use rand::distributions;
 use rand::prelude::Distribution;
-use rayon::prelude::{
-    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 use rt::{
     camera::{Camera, PixelCoord, ViewportCoord},
@@ -22,7 +25,6 @@ use rt::{
     utils::counter::counter,
 };
 
-use itertools::Itertools;
 use rt::scene::Scene;
 
 enum Message {
@@ -31,31 +33,82 @@ enum Message {
 }
 
 pub struct TileMsg {
-    pub tile_x: u32,
-    pub tile_y: u32,
+    pub tile: Tile,
     pub data: Vec<PixelRenderResult>,
 }
 
-impl TileMsg {
-    fn tile_bounds(&self, tile_size: u32, height: u32, width: u32) -> (u32, u32, u32, u32) {
-        let x = self.tile_x * tile_size;
-        let y = self.tile_y * tile_size;
-        let tile_width = (x + tile_size).min(width) - x;
-        let tile_height = (y + tile_size).min(height) - y;
-        (x, y, tile_width, tile_height)
-    }
-}
-
-pub struct RendererCreateInfo {
+pub struct ExecutorBuilder {
     pub dimension: Dimensions,
     pub spp: Spp,
     pub tile_size: u32,
-    pub scene: Scene,
-    pub integrator: Box<dyn Integrator>,
     pub allowed_error: Option<f32>,
 }
 
-pub struct Renderer {
+impl Default for ExecutorBuilder {
+    fn default() -> Self {
+        Self {
+            dimension: Dimensions {
+                width: 800,
+                height: 600,
+            },
+            spp: Spp::Spp(32),
+            tile_size: 32,
+            allowed_error: None,
+        }
+    }
+}
+
+impl ExecutorBuilder {
+    pub fn dimensions(mut self, dim: Dimensions) -> Self {
+        self.dimension = dim;
+        self
+    }
+    pub fn spp(mut self, spp: Spp) -> Self {
+        self.spp = spp;
+        self
+    }
+
+    pub fn tile_size(mut self, tile_size: u32) -> Self {
+        self.tile_size = tile_size;
+        self
+    }
+
+    pub fn allowed_error(mut self, allowed_error: Option<f32>) -> Self {
+        self.allowed_error = allowed_error;
+        self
+    }
+
+    pub fn build(self, integrator: Box<dyn Integrator>, scene: Scene) -> Executor {
+        let look_at = Point::new(0.0, 0.0, -1.0);
+        let look_from = Point::ORIGIN;
+        let look_direction = look_at - look_from;
+        let camera = Camera::new(
+            self.dimension.width,
+            self.dimension.height,
+            f32::to_radians(70.),
+            look_direction.length(),
+            look_from,
+            LookAt {
+                direction: look_direction,
+                forward: Vec3::NEG_Z,
+            }
+            .into(),
+            0.0,
+        );
+
+        Executor {
+            dimension: self.dimension,
+            samples_per_pixel: self.spp,
+            tile_size: self.tile_size,
+            allowed_error: self.allowed_error,
+            integrator,
+            world: World::from_scene(scene),
+            camera,
+        }
+    }
+}
+
+pub struct Executor {
     pub dimension: Dimensions,
     pub tile_size: u32,
 
@@ -73,6 +126,7 @@ pub type OutputBuffers = GenericRenderResult<Rgb32FImage, Luma32FImage>;
 
 trait OutputBuffersExt<T, L> {
     fn convert(&mut self, d: GenericRenderResult<T, L>, x: u32, y: u32);
+    fn new(d: Dimensions) -> Self;
 }
 impl OutputBuffersExt<Rgb, Luma> for OutputBuffers {
     fn convert(&mut self, d: PixelRenderResult, x: u32, y: u32) {
@@ -83,88 +137,46 @@ impl OutputBuffersExt<Rgb, Luma> for OutputBuffers {
         *self.z.get_pixel_mut(x, y) = d.z.into();
         *self.ray_depth.get_pixel_mut(x, y) = d.ray_depth.into();
     }
-}
 
-impl Renderer {
-    pub fn new(tile_create_info: RendererCreateInfo) -> Self {
-        let look_at = Point::new(0.0, 0.0, -1.0);
-        let look_from = Point::ORIGIN;
-        let look_direction = look_at - look_from;
-        let camera = Camera::new(
-            tile_create_info.dimension.width,
-            tile_create_info.dimension.height,
-            f32::to_radians(70.),
-            look_direction.length(),
-            look_from,
-            LookAt {
-                direction: look_direction,
-                forward: Vec3::NEG_Z,
-            }
-            .into(),
-            0.0,
-        );
-
+    fn new(Dimensions { width, height }: Dimensions) -> Self {
         Self {
-            dimension: tile_create_info.dimension,
-            samples_per_pixel: tile_create_info.spp,
-            tile_size: tile_create_info.tile_size,
-            allowed_error: tile_create_info.allowed_error,
-            integrator: tile_create_info.integrator,
-            world: World::from_scene(tile_create_info.scene),
-            camera,
-        }
-    }
-
-    pub fn run<F: FnMut(TileMsg) + Send>(
-        self,
-        on_tile_rendered: F,
-    ) -> anyhow::Result<OutputBuffers> {
-        let width = self.dimension.width;
-        let height = self.dimension.height;
-        let tile_size = self.tile_size;
-
-        let mut output_buffers = OutputBuffers {
             color: ImageBuffer::new(width, height),
             normal: ImageBuffer::new(width, height),
             position: ImageBuffer::new(width, height),
             albedo: ImageBuffer::new(width, height),
             z: ImageBuffer::new(width, height),
             ray_depth: ImageBuffer::new(width, height),
+        }
+    }
+}
+
+impl Executor {
+    pub fn run<F: FnMut(TileMsg) + Send>(
+        self,
+        on_tile_rendered: F,
+    ) -> anyhow::Result<OutputBuffers> {
+        let mut output_buffers = OutputBuffers::new(self.dimension);
+
+        let tiler = Tiler {
+            width: self.dimension.width,
+            height: self.dimension.height,
+            x_grainsize: self.tile_size,
+            y_grainsize: self.tile_size,
         };
 
-        let tile_count_x = (width as f32 / tile_size as f32).ceil() as u32;
-        let tile_count_y = (height as f32 / tile_size as f32).ceil() as u32;
-
         let progress = match self.samples_per_pixel {
-            Spp::Spp(s) => progress::Progress::new((s * tile_count_x * tile_count_y) as usize),
+            Spp::Spp(s) => progress::Progress::new(s as usize * tiler.tile_count()),
             Spp::Inf => progress::Progress::new_inf(),
         };
 
-        let mut tiles_data: Vec<Vec<RaySeries>> = (0..tile_count_x)
-            .cartesian_product(0..tile_count_y)
-            .map(|(tile_x, tile_y)| {
-                let x_range = (tile_x * self.tile_size)
-                    ..((tile_x + 1) * self.tile_size).min(self.dimension.width);
-                let y_range = (tile_y * self.tile_size)
-                    ..((tile_y + 1) * self.tile_size).min(self.dimension.height);
-                let tile_width = x_range.len();
-                let tile_height = y_range.len();
+        let mut tiles_data: Vec<Vec<RaySeries>> = tiler
+            .into_iter()
+            .map(|tile| {
                 let mut c = Vec::new();
-                c.resize_with(tile_width * tile_height, Default::default);
+                c.resize_with(tile.width() * tile.height(), Default::default);
                 c
             })
             .collect();
-
-        let mut push_tile_on_output_buffers = |msg: &TileMsg| {
-            let (x, y, width, height) =
-                msg.tile_bounds(self.tile_size, self.dimension.height, self.dimension.width);
-
-            for i in 0..width {
-                for j in 0..height {
-                    output_buffers.convert(msg.data[(i + width * j) as usize], x + i, y + j);
-                }
-            }
-        };
 
         let generation_result = rayon::scope(|s| {
             let (tx, rx) = channel();
@@ -176,9 +188,11 @@ impl Renderer {
                 let mut last_progress_update = std::time::Instant::now();
                 for msg in rx.iter() {
                     match msg {
-                        Message::Tile(tile_msg) => {
-                            push_tile_on_output_buffers(&tile_msg);
-                            on_tile_rendered(tile_msg);
+                        Message::Tile(msg) => {
+                            for (index, (x, y)) in msg.tile.into_iter().enumerate() {
+                                output_buffers.convert(msg.data[index], x, y);
+                            }
+                            on_tile_rendered(msg);
                         }
                         Message::Stop => {
                             break;
@@ -194,22 +208,16 @@ impl Renderer {
                 println!("\r{progress}");
             });
 
-            let tiles_indices = (0..tile_count_x)
-                .cartesian_product(0..tile_count_y)
-                .collect::<Vec<_>>();
-
             let mut dispatch = |sample_count| {
-                tiles_indices
-                    .par_iter()
-                    .copied()
+                tiler
+                    .into_par_iter()
                     .zip(tiles_data.par_iter_mut())
-                    .map(|((tile_x, tile_y), data)| {
-                        self.tile_worker((tile_x, tile_y), data, sample_count);
+                    .map(|(tile, data)| {
+                        self.tile_worker(tile, data, sample_count);
                         progress.add(sample_count as usize);
 
                         TileMsg {
-                            tile_x,
-                            tile_y,
+                            tile,
                             data: data.iter().map(|x| x.as_pixelresult()).collect::<Vec<_>>(),
                         }
                     })
@@ -248,24 +256,14 @@ impl Renderer {
         Ok(output_buffers)
     }
 
-    fn tile_worker(&self, (tile_x, tile_y): (u32, u32), data: &mut [RaySeries], sample_count: u32) {
-        let x_range =
-            (tile_x * self.tile_size)..((tile_x + 1) * self.tile_size).min(self.dimension.width);
-        let y_range =
-            (tile_y * self.tile_size)..((tile_y + 1) * self.tile_size).min(self.dimension.height);
-        let tile_width = x_range.len();
-
-        for (j, y) in y_range.enumerate() {
-            for (i, x) in x_range.clone().enumerate() {
-                let index = j * tile_width + i;
-                data[index] = RaySeries::merge(
-                    std::mem::take(&mut data[index]),
-                    self.pixel_worker(PixelCoord { x, y }, sample_count),
-                );
-            }
+    fn tile_worker(&self, tile: Tile, data: &mut [RaySeries], sample_count: u32) {
+        log::trace!("working on tile {tile:?}");
+        for (index, (x, y)) in tile.into_iter().enumerate() {
+            data[index] = RaySeries::merge(
+                std::mem::take(&mut data[index]),
+                self.pixel_worker(PixelCoord { x, y }, sample_count),
+            );
         }
-
-        log::trace!("Tile {tile_x} {tile_y} done !");
     }
 
     fn pixel_worker(&self, coords: PixelCoord, samples: u32) -> RaySeries {

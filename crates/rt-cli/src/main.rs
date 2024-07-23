@@ -2,10 +2,11 @@
 #![feature(maybe_uninit_slice)]
 
 mod cli;
+mod executor;
 mod output;
 mod progress;
-mod renderer;
 mod storage;
+mod tile;
 
 use std::{fmt::Display, str::FromStr};
 

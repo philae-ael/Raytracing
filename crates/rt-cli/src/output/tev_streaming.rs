@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use rand::{distributions::Alphanumeric, Rng};
 use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
-use crate::{cli::StreamingOutput, renderer::TileMsg, Dimensions};
+use crate::{cli::StreamingOutput, executor::TileMsg, Dimensions};
 
 const CHANNEL_COUNT: usize = 14;
 fn channel_names() -> [&'static str; CHANNEL_COUNT] {
@@ -107,12 +107,7 @@ impl TevStreaming {
 
 impl StreamingOutput for TevStreaming {
     fn send_msg(&mut self, msg: &TileMsg) -> Result<()> {
-        let x = msg.tile_x * self.tile_size;
-        let y = msg.tile_y * self.tile_size;
-        let tile_width = (x + self.tile_size).min(self.dimension.width) - x;
-        let tile_height = (y + self.tile_size).min(self.dimension.height) - y;
-
-        assert!(msg.data.len() == (tile_width * tile_height) as usize);
+        assert!(msg.data.len() == msg.tile.len());
 
         let data = bytemuck::cast_slice(msg.data.as_slice());
 
@@ -123,10 +118,10 @@ impl StreamingOutput for TevStreaming {
                 channel_names: &channel_names(),
                 channel_offsets: &channel_offsets(),
                 channel_strides: &channel_strides(),
-                x,
-                y,
-                width: tile_width,
-                height: tile_height,
+                x: msg.tile.x_start,
+                y: msg.tile.y_start,
+                width: msg.tile.width() as u32,
+                height: msg.tile.height() as u32,
                 data,
             })
             .context("Can't send Packet to tev client. It may be closed")

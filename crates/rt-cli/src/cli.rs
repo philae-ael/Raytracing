@@ -4,8 +4,8 @@ use anyhow::Result;
 use rt::utils::{counter, timer::timed_scope_log};
 
 use crate::{
+    executor::{Executor, ExecutorBuilder, OutputBuffers, TileMsg},
     output::{FileOutput, TevStreaming},
-    executor::{OutputBuffers, Executor, ExecutorBuilder, TileMsg},
     Args, AvailableOutput,
 };
 
@@ -28,18 +28,10 @@ pub struct Cli {
     pub streaming_outputs: Vec<Box<dyn StreamingOutput>>,
     pub final_outputs: Vec<Box<dyn FinalOutput>>,
     pub renderer: Executor,
+    pub multithreaded: bool,
 }
 impl Cli {
     pub fn new(args: Args) -> Result<Self> {
-        if args.no_threads {
-            log::warn!("Working on only one thread");
-            // Only one thread == Not Threaded
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(1)
-                .build_global()
-                .unwrap();
-        }
-
         let outputs: HashSet<AvailableOutput> = HashSet::from_iter(args.output);
         let tile_size = 32;
 
@@ -58,6 +50,7 @@ impl Cli {
             streaming_outputs: Vec::new(),
             final_outputs: Vec::new(),
             renderer,
+            multithreaded: !args.disable_threading,
         };
 
         for o in outputs {
@@ -81,7 +74,7 @@ impl Cli {
 
     pub fn run(mut self) -> Result<()> {
         let output_buffers = timed_scope_log("Run tile renderer", || {
-            self.renderer.run(|msg| {
+            let f = |msg| {
                 self.streaming_outputs
                     .iter_mut()
                     .for_each(|output| match output.send_msg(&msg) {
@@ -93,7 +86,12 @@ impl Cli {
                             *output = Box::new(DummyOutput {});
                         }
                     });
-            })
+            };
+            if self.multithreaded {
+                self.renderer.run_multithreaded(f)
+            } else {
+                self.renderer.run_monothreaded(f)
+            }
         })
         .res?;
 

@@ -151,42 +151,32 @@ impl OutputBuffersExt<Rgb, Luma> for OutputBuffers {
 }
 
 impl Executor {
-    pub fn run<F: FnMut(TileMsg) + Send>(
+    pub fn run_multithreaded<F: FnMut(TileMsg) + Send>(
         self,
-        on_tile_rendered: F,
+        mut on_tile_rendered: F,
     ) -> anyhow::Result<OutputBuffers> {
+        log::debug!("Monothreaded");
+
         let mut output_buffers = OutputBuffers::new(self.dimension);
-
-        let tiler = Tiler {
-            width: self.dimension.width,
-            height: self.dimension.height,
-            x_grainsize: self.tile_size,
-            y_grainsize: self.tile_size,
-        };
-
-        let progress = match self.samples_per_pixel {
-            Spp::Spp(s) => progress::Progress::new(s as usize * tiler.tile_count()),
-            Spp::Inf => progress::Progress::new_inf(),
-        };
-
-        let mut tiles_data: Vec<Vec<RaySeries>> = tiler
-            .into_iter()
-            .map(|tile| {
-                let mut c = Vec::new();
-                c.resize_with(tile.width() * tile.height(), Default::default);
-                c
-            })
-            .collect();
-
+        let (tx, rx) = channel();
+        let (mut ctx, progress) = self.build_ctx(|msg| {
+            tx.send(Message::Tile(msg)).unwrap();
+        });
         let generation_result = rayon::scope(|s| {
-            let (tx, rx) = channel();
+            log::info!("Generating image...");
 
             log::info!("Generating image...");
             s.spawn(|_| {
-                let mut on_tile_rendered = on_tile_rendered;
+                let output_buffers = &mut output_buffers;
+                let progress = &progress;
                 let rx: Receiver<Message> = rx; // Force move without moving anything else
                 let mut last_progress_update = std::time::Instant::now();
-                for msg in rx.iter() {
+
+                loop {
+                    let Some(msg) = rx.try_recv().ok() else {
+                        rayon::yield_now();
+                        continue;
+                    };
                     match msg {
                         Message::Tile(msg) => {
                             for (index, (x, y)) in msg.tile.into_iter().enumerate() {
@@ -205,55 +195,74 @@ impl Executor {
                         last_progress_update = std::time::Instant::now();
                     }
                 }
-                println!("\r{progress}");
+                print!("\r{progress}\n");
+                let _ = std::io::stdout().flush();
             });
 
-            let mut dispatch = |sample_count| {
-                tiler
-                    .into_par_iter()
-                    .zip(tiles_data.par_iter_mut())
-                    .map(|(tile, data)| {
-                        self.tile_worker(tile, data, sample_count);
-                        progress.add(sample_count as usize);
-
-                        TileMsg {
-                            tile,
-                            data: data.iter().map(|x| x.as_pixelresult()).collect::<Vec<_>>(),
-                        }
-                    })
-                    .try_for_each_init(
-                        || tx.clone(),
-                        |tx, msg: TileMsg| tx.send(Message::Tile(msg)),
-                    )
-            };
-
-            let sample_batch_size = 32;
-            match self.samples_per_pixel {
-                Spp::Spp(s) => {
-                    let mut samples_to_do = s;
-                    while samples_to_do > 0 {
-                        // Samples for this iteration
-                        let samples = u32::min(sample_batch_size, samples_to_do);
-                        samples_to_do -= samples;
-
-                        dispatch(samples)?;
-                    }
-                }
-                Spp::Inf => {
-                    for _sample_batch in 0.. {
-                        dispatch(sample_batch_size)?;
-                    }
-                }
-            };
+            for samples in SampleCounter::new(32, ctx.executor.samples_per_pixel) {
+                ctx.dispatch_async(samples, &progress);
+            }
             tx.send(Message::Stop)
         });
 
         match generation_result {
-            Ok(_) => log::info!("Image fully generated"),
+            Ok(_) => {
+                log::info!("Image fully generated")
+            }
             Err(err) => log::info!("Image generation interrupted: {}", err),
         };
+        Ok(output_buffers)
+    }
+
+    pub fn run_monothreaded<F: FnMut(TileMsg)>(
+        self,
+        on_tile_rendered: F,
+    ) -> anyhow::Result<OutputBuffers> {
+        log::debug!("Monothreaded");
+
+        let mut output_buffers = OutputBuffers::new(self.dimension);
+        let (mut ctx, progress) = self.build_ctx(on_tile_rendered);
+
+        log::info!("Generating image...");
+
+        for samples in SampleCounter::new(32, ctx.executor.samples_per_pixel) {
+            ctx.dispatch_sync(samples, &mut output_buffers, &progress);
+        }
+        print!("\r{progress}\n");
+
+        log::info!("Image fully generated");
 
         Ok(output_buffers)
+    }
+
+    fn build_ctx<F>(self, on_tile_rendered: F) -> (Ctx<F>, progress::Progress) {
+        let tiler = Tiler {
+            width: self.dimension.width,
+            height: self.dimension.height,
+            x_grainsize: self.tile_size,
+            y_grainsize: self.tile_size,
+        };
+        let progress = match self.samples_per_pixel {
+            Spp::Spp(s) => progress::Progress::new(s as usize * tiler.tile_count()),
+            Spp::Inf => progress::Progress::new_inf(),
+        };
+
+        (
+            Ctx {
+                tiler,
+                tiles_data: tiler
+                    .into_iter()
+                    .map(|tile| {
+                        let mut c = Vec::new();
+                        c.resize_with(tile.width() * tile.height(), Default::default);
+                        c
+                    })
+                    .collect::<Vec<Vec<RaySeries>>>(),
+                on_tile_rendered,
+                executor: self,
+            },
+            progress,
+        )
     }
 
     fn tile_worker(&self, tile: Tile, data: &mut [RaySeries], sample_count: u32) {
@@ -265,7 +274,6 @@ impl Executor {
             );
         }
     }
-
     fn pixel_worker(&self, coords: PixelCoord, samples: u32) -> RaySeries {
         let ViewportCoord { vx, vy } = ViewportCoord::from_pixel_coord(&self.camera, coords);
         let pixel_width = 1. / (self.camera.width as f32 - 1.);
@@ -293,5 +301,85 @@ impl Executor {
         }
 
         ray_series
+    }
+}
+
+struct Ctx<F> {
+    tiler: Tiler,
+    tiles_data: Vec<Vec<RaySeries>>,
+    on_tile_rendered: F,
+    executor: Executor,
+}
+
+impl<F: FnMut(TileMsg)> Ctx<F> {
+    fn dispatch_sync(
+        &mut self,
+        sample_count: u32,
+        output_buffers: &mut OutputBuffers,
+        progress: &progress::Progress,
+    ) {
+        for (tile, data) in self.tiler.into_iter().zip(self.tiles_data.iter_mut()) {
+            self.executor.tile_worker(tile, data, sample_count);
+            progress.add(sample_count as _);
+            print!("\r{progress}");
+            let _ = std::io::stdout().flush();
+
+            let msg = TileMsg {
+                tile,
+                data: data.iter().map(|x| x.as_pixelresult()).collect::<Vec<_>>(),
+            };
+
+            for (index, (x, y)) in msg.tile.into_iter().enumerate() {
+                output_buffers.convert(msg.data[index], x, y);
+            }
+            (self.on_tile_rendered)(msg);
+        }
+    }
+}
+
+impl<F: Fn(TileMsg) + Sync + Send> Ctx<F> {
+    fn dispatch_async(&mut self, sample_count: u32, progress: &progress::Progress) {
+        self.tiler
+            .into_par_iter()
+            .zip(self.tiles_data.par_iter_mut())
+            .map(|(tile, data)| {
+                self.executor.tile_worker(tile, data, sample_count);
+                progress.add(sample_count as _);
+
+                TileMsg {
+                    tile,
+                    data: data.iter().map(|x| x.as_pixelresult()).collect::<Vec<_>>(),
+                }
+            })
+            .for_each(&self.on_tile_rendered)
+    }
+}
+
+struct SampleCounter {
+    batch_size: u32,
+    spp: Spp,
+}
+
+impl SampleCounter {
+    fn new(batch_size: u32, spp: Spp) -> Self {
+        Self { batch_size, spp }
+    }
+}
+
+impl Iterator for SampleCounter {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.spp {
+            Spp::Spp(s) => {
+                if *s == 0 {
+                    return None;
+                }
+                let samples = u32::min(self.batch_size, *s);
+                *s -= samples;
+                Some(samples)
+            }
+            Spp::Inf => Some(self.batch_size),
+        }
     }
 }

@@ -139,10 +139,10 @@ pub struct Args {
     allowed_error: Option<f32>,
 
     #[arg(long)]
-    no_threads: bool,
-
-    #[arg(long)]
     tile_size: Option<u32>,
+
+    #[arg(long, default_value_t = false)]
+    disable_threading: bool,
 }
 
 fn main() -> anyhow::Result<()> {

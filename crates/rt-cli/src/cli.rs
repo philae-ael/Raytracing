@@ -1,10 +1,15 @@
 use std::collections::HashSet;
 
 use anyhow::Result;
-use rt::utils::{counter, timer::timed_scope_log};
+use rt::{
+    camera::Camera,
+    math::{point::Point, quaternion::LookAt, vec::Vec3},
+    renderer::World,
+    utils::{counter, timer::timed_scope_log},
+};
 
 use crate::{
-    executor::{Executor, ExecutorBuilder, OutputBuffers, TileMsg},
+    executor::{Executor, OutputBuffers, TileMsg},
     output::{FileOutput, TevStreaming},
     Args, AvailableOutput,
 };
@@ -35,21 +40,41 @@ impl Cli {
         let outputs: HashSet<AvailableOutput> = HashSet::from_iter(args.output);
         let tile_size = 32;
 
-        let renderer = {
-            let mut renderer = ExecutorBuilder::default()
-                .dimensions(args.dimensions)
-                .spp(args.sample_per_pixel)
-                .allowed_error(args.allowed_error);
-            if let Some(tile_size) = args.tile_size {
-                renderer = renderer.tile_size(tile_size);
+        let executor = {
+            let integrator = args.integrator.into();
+            let scene = args.scene.into();
+            let look_at = Point::new(0.0, 0.0, -1.0);
+            let look_from = Point::ORIGIN;
+            let look_direction = look_at - look_from;
+            let camera = Camera::new(
+                args.dimensions.width,
+                args.dimensions.height,
+                f32::to_radians(70.),
+                look_direction.length(),
+                look_from,
+                LookAt {
+                    direction: look_direction,
+                    forward: Vec3::NEG_Z,
+                }
+                .into(),
+                0.0,
+            );
+
+            Executor {
+                dimension: args.dimensions,
+                samples_per_pixel: args.sample_per_pixel,
+                tile_size: args.tile_size.unwrap_or(32),
+                allowed_error: args.allowed_error,
+                integrator,
+                world: World::from_scene(scene),
+                camera,
             }
-            renderer.build(args.integrator.into(), args.scene.into())
         };
 
         let mut this = Self {
             streaming_outputs: Vec::new(),
             final_outputs: Vec::new(),
-            renderer,
+            renderer: executor,
             multithreaded: !args.disable_threading,
         };
 

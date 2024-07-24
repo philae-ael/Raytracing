@@ -20,12 +20,9 @@ use rt::{
     camera::{Camera, PixelCoord, ViewportCoord},
     color::{Luma, Rgb},
     integrators::Integrator,
-    math::{point::Point, quaternion::LookAt, vec::Vec3},
     renderer::{GenericRenderResult, PixelRenderResult, RaySeries, World},
     utils::counter::counter,
 };
-
-use rt::scene::Scene;
 
 enum Message {
     Tile(TileMsg),
@@ -35,77 +32,6 @@ enum Message {
 pub struct TileMsg {
     pub tile: Tile,
     pub data: Vec<PixelRenderResult>,
-}
-
-pub struct ExecutorBuilder {
-    pub dimension: Dimensions,
-    pub spp: Spp,
-    pub tile_size: u32,
-    pub allowed_error: Option<f32>,
-}
-
-impl Default for ExecutorBuilder {
-    fn default() -> Self {
-        Self {
-            dimension: Dimensions {
-                width: 800,
-                height: 600,
-            },
-            spp: Spp::Spp(32),
-            tile_size: 32,
-            allowed_error: None,
-        }
-    }
-}
-
-impl ExecutorBuilder {
-    pub fn dimensions(mut self, dim: Dimensions) -> Self {
-        self.dimension = dim;
-        self
-    }
-    pub fn spp(mut self, spp: Spp) -> Self {
-        self.spp = spp;
-        self
-    }
-
-    pub fn tile_size(mut self, tile_size: u32) -> Self {
-        self.tile_size = tile_size;
-        self
-    }
-
-    pub fn allowed_error(mut self, allowed_error: Option<f32>) -> Self {
-        self.allowed_error = allowed_error;
-        self
-    }
-
-    pub fn build(self, integrator: Box<dyn Integrator>, scene: Scene) -> Executor {
-        let look_at = Point::new(0.0, 0.0, -1.0);
-        let look_from = Point::ORIGIN;
-        let look_direction = look_at - look_from;
-        let camera = Camera::new(
-            self.dimension.width,
-            self.dimension.height,
-            f32::to_radians(70.),
-            look_direction.length(),
-            look_from,
-            LookAt {
-                direction: look_direction,
-                forward: Vec3::NEG_Z,
-            }
-            .into(),
-            0.0,
-        );
-
-        Executor {
-            dimension: self.dimension,
-            samples_per_pixel: self.spp,
-            tile_size: self.tile_size,
-            allowed_error: self.allowed_error,
-            integrator,
-            world: World::from_scene(scene),
-            camera,
-        }
-    }
 }
 
 pub struct Executor {
@@ -118,7 +44,7 @@ pub struct Executor {
     pub world: World,
     // TODO: make a pool of materials
     pub integrator: Box<dyn Integrator>,
-    camera: Camera,
+    pub camera: Camera,
 }
 
 type Luma32FImage = image::ImageBuffer<image::Luma<f32>, Vec<f32>>;

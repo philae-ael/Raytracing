@@ -9,6 +9,7 @@ edition = "2021"
 anyhow = "1.0.66"
 bytemuck = "1.12.1"
 clap = { version = "4.0.18", features = ["derive"] }
+embree4-rs = "0.0.16"
 env_logger = "0.9.1"
 image = "0.24.4"
 itertools = "0.10.5"

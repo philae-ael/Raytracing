@@ -13,8 +13,11 @@ use super::progress;
 use image::{ImageBuffer, Rgb32FImage};
 use rand::distributions;
 use rand::prelude::Distribution;
-use rayon::iter::{
-    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
+use rayon::{
+    iter::{
+        IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
+    },
+    Scope,
 };
 use rt::{
     camera::{Camera, PixelCoord, ViewportCoord},
@@ -85,10 +88,11 @@ impl Executor {
 
         let mut output_buffers = OutputBuffers::new(self.dimension);
         let (tx, rx) = channel();
-        let (mut ctx, progress) = self.build_ctx(|msg| {
+        let (mut ctx_, progress) = self.build_ctx(|msg| {
             tx.send(Message::Tile(msg)).unwrap();
         });
-        let generation_result = rayon::scope(|s| {
+        let ctx = &mut ctx_;
+        let generation_result = rayon::scope(|s: &Scope<'_>| {
             log::info!("Generating image...");
 
             log::info!("Generating image...");
@@ -263,7 +267,7 @@ impl<F: FnMut(TileMsg)> Ctx<F> {
     }
 }
 
-impl<F: Fn(TileMsg) + Sync + Send> Ctx<F> {
+impl<F: Fn(TileMsg) + Sync> Ctx<F> {
     fn dispatch_async(&mut self, sample_count: u32, progress: &progress::Progress) {
         self.tiler
             .into_par_iter()

@@ -1,5 +1,7 @@
 pub mod examples;
 
+use glam::Vec3;
+
 use crate::{
     aggregate::shapelist::{ShapeList, ShapeListEntry},
     material::{Material, MaterialDescriptor, MaterialId},

@@ -18,14 +18,13 @@
 //!
 //! All explicit shapes are reimported bellow
 
+pub mod plane;
 pub mod sphere;
 pub mod triangle;
-pub mod plane;
 
-pub use sphere::Sphere;
 pub use plane::Plane;
+pub use sphere::Sphere;
 pub use triangle::{Triangle, TriangleBuilder};
-
 
 use crate::{math::bounds::Bounds, ray::Ray};
 
@@ -33,7 +32,7 @@ use crate::{math::bounds::Bounds, ray::Ray};
 ///
 /// To render a shape we only need to know whether a ray intersect it and if so,
 ///  some information about the shape at the intersection point
-pub trait Shape: Send + Sync {
+pub trait Shape: Sync + Send {
     /// Check whether `ray` intersect the shape defined by `self` if so, gives all the information needed
     fn intersection_full(&self, ray: Ray) -> FullIntersectionResult;
 
@@ -104,8 +103,12 @@ impl<T> IntersectionResult<T> {
     }
 
     pub fn min(self, other: Self) -> Self {
-        let Self::Intersection(RayIntersection{t: t1, ..}) = self else {return other;};
-        let Self::Intersection(RayIntersection{t: t2, ..}) = other else {return self;};
+        let Self::Intersection(RayIntersection { t: t1, .. }) = self else {
+            return other;
+        };
+        let Self::Intersection(RayIntersection { t: t2, .. }) = other else {
+            return self;
+        };
 
         if t1 < t2 {
             self

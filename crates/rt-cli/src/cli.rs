@@ -1,9 +1,18 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, f32::consts::PI};
 
 use anyhow::Result;
 use rt::{
+    aggregate::embree::EmbreeScene,
     camera::Camera,
-    math::{point::Point, quaternion::LookAt, vec::Vec3},
+    color::Rgb,
+    loader::ObjLoaderExt,
+    material::{texture::Uniform, Diffuse, Emit, MaterialDescriptor},
+    math::{
+        point::Point,
+        quaternion::{LookAt, Quat},
+        transform::Transform,
+        vec::Vec3,
+    },
     renderer::World,
     utils::{counter, timer::timed_scope_log},
 };
@@ -42,7 +51,19 @@ impl Cli {
 
         let executor = {
             let integrator = args.integrator.into();
-            let scene = args.scene.into();
+
+            let mut scene = EmbreeScene::new(embree4_rs::Device::try_new(None).unwrap());
+            scene.load_obj(
+                "obj/dragon.obj",
+                Transform {
+                    translation: Vec3::new(0.0, 0.0, -1.0),
+                    scale: 0.01 * Vec3::ONE,
+                    rot: Quat::from_axis_angle(Vec3::Y, 1.1 * PI),
+                },
+                rt::material::MaterialId(0),
+            );
+            let scene = scene.commit();
+
             let look_at = Point::new(0.0, 0.0, -1.0);
             let look_from = Point::ORIGIN;
             let look_direction = look_at - look_from;
@@ -66,7 +87,25 @@ impl Cli {
                 tile_size: args.tile_size.unwrap_or(32),
                 allowed_error: args.allowed_error,
                 integrator,
-                world: World::from_scene(scene),
+                world: World {
+                    objects: Box::new(scene),
+                    lights: vec![Point::new(10.2, 80.0, 75.0)],
+                    world_material: rt::material::MaterialId(1),
+                    materials: vec![
+                        MaterialDescriptor {
+                            label: Some("Material".into()),
+                            material: Box::new(Diffuse {
+                                texture: Box::new(Uniform(Rgb::from_array([0.5; 3]))),
+                            }),
+                        },
+                        MaterialDescriptor {
+                            label: Some("Sky".into()),
+                            material: Box::new(Emit {
+                                texture: Box::new(Uniform(Rgb::from_array([0.2, 0.2, 0.2]))),
+                            }),
+                        },
+                    ],
+                },
                 camera,
             }
         };

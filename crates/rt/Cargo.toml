@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 bytemuck = { version = "1.12.1", features = ["derive"] }
+embree4-rs = "0.0.16"
+embree4-sys = "0.0.10"
 env_logger = "0.9.1"
 glam = "0.21.3"
 image = "0.24.4"

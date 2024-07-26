@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 
 use crate::{
-    aggregate::shapelist::{ShapeList, ShapeListEntry},
+    aggregate::{
+        embree::EmbreeScene,
+        shapelist::{ShapeList, ShapeListEntry},
+    },
     color::Rgb,
     material::{texture, Diffuse, Emit, MaterialId, MixMaterial},
     math::{
@@ -151,5 +154,60 @@ impl ObjLoaderExt for Scene {
 
             self.insert_shape_list(triangles)
         }
+    }
+}
+
+impl ObjLoaderExt for EmbreeScene {
+    fn load_obj<T: Into<PathBuf>>(&mut self, mesh_path: T, transform: Transform, _: MaterialId) {
+        let mut options = tobj::GPU_LOAD_OPTIONS;
+        options.single_index = true;
+        let (models, _) =
+            tobj::load_obj(mesh_path.into(), &options).expect("Failed to load OBJ file");
+
+        let mut voutput = Vec::<(f32, f32, f32)>::new();
+        let mut ioutput = Vec::new();
+
+        for model in models {
+            let mesh = model.mesh;
+            let num_faces = mesh.indices.len() / 3;
+            log::debug!("Loading model {}; {} faces", model.name, num_faces);
+
+            log::debug!("indices: {:?}", mesh.indices);
+            let mut indices_slice = mesh.indices.as_slice();
+            for _ in 0..num_faces {
+                let indices = &indices_slice[0..3];
+                indices_slice = &indices_slice[3..];
+
+                #[allow(clippy::identity_op)]
+                let vertices = [
+                    Point::new(
+                        mesh.positions[(0 + indices[0] * 3) as usize],
+                        mesh.positions[(1 + indices[0] * 3) as usize],
+                        mesh.positions[(2 + indices[0] * 3) as usize],
+                    ),
+                    Point::new(
+                        mesh.positions[(0 + indices[1] * 3) as usize],
+                        mesh.positions[(1 + indices[1] * 3) as usize],
+                        mesh.positions[(2 + indices[1] * 3) as usize],
+                    ),
+                    Point::new(
+                        mesh.positions[(0 + indices[2] * 3) as usize],
+                        mesh.positions[(1 + indices[2] * 3) as usize],
+                        mesh.positions[(2 + indices[2] * 3) as usize],
+                    ),
+                ]
+                .map(|v| transform.apply(v));
+
+                let i1 = voutput.len() as u32;
+                voutput.push(vertices[0].0.to_array().into());
+                voutput.push(vertices[1].0.to_array().into());
+                voutput.push(vertices[2].0.to_array().into());
+
+                ioutput.push((i1, i1 + 1, i1 + 2));
+
+                log::debug!("Face for indices {:?} {vertices:?}", indices);
+            }
+        }
+        self.attach_geometry(&voutput, &ioutput);
     }
 }

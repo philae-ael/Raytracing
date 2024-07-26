@@ -27,6 +27,12 @@ impl Transform {
     };
 }
 
+impl Transform {
+    pub fn into_matrix(&self) -> glam::Mat4 {
+        glam::Mat4::from_scale_rotation_translation(self.scale, self.rot, self.translation)
+    }
+}
+
 impl Transformer<Vec3> for Transform {
     /// Apply rotation then scale but not translation !
     fn apply(&self, v: Vec3) -> Vec3 {

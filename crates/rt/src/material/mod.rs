@@ -16,9 +16,9 @@ pub use mix::MixMaterial;
 
 use glam::Vec3;
 
-use crate::{color::Rgb, ray::Ray, shape::local_info};
+use crate::{color::Rgb, math::point::Point, ray::Ray, shape::local_info};
 
-pub trait Material {
+pub trait Material: Sync + Send {
     fn scatter(
         &self,
         ray: Ray,
@@ -49,7 +49,7 @@ pub struct Scattered {
 
 pub struct MaterialDescriptor {
     pub label: Option<String>,
-    pub material: Box<dyn Material + Sync + Send>,
+    pub material: Box<dyn Material>,
 }
 
 impl std::fmt::Debug for MaterialDescriptor {
@@ -59,6 +59,12 @@ impl std::fmt::Debug for MaterialDescriptor {
             .field("material", &"<material>")
             .finish()
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct LightDescriptor {
+    pub label: Option<String>,
+    pub light_pos: Point,
 }
 
 #[derive(Debug, Clone, Copy)]

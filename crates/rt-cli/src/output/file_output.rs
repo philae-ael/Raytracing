@@ -2,7 +2,7 @@ use anyhow::Result;
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb};
 use std::path::PathBuf;
 
-use crate::{cli::FinalOutput, executor::OutputBuffers};
+use crate::{executor::OutputBuffers, renderer::FinalOutput};
 
 pub struct FileOutput {
     pub hdr_outdir: Option<PathBuf>,
@@ -28,9 +28,7 @@ impl FinalOutput for FileOutput {
             log::info!("Saving HDR images...");
             for buff in output_buffers.as_ref().into_iter() {
                 match buff {
-                    rt::renderer::Channel::Color(color) => {
-                        color.save(hdr_path.join("color.exr"))
-                    }
+                    rt::renderer::Channel::Color(color) => color.save(hdr_path.join("color.exr")),
                     rt::renderer::Channel::Position(position) => {
                         position.save(hdr_path.join("position.exr"))
                     }
@@ -40,9 +38,7 @@ impl FinalOutput for FileOutput {
                     rt::renderer::Channel::Albedo(albedo) => {
                         albedo.save(hdr_path.join("albedo.exr"))
                     }
-                    rt::renderer::Channel::Z(z) => {
-                        convert_luma(z).save(hdr_path.join("depth.exr"))
-                    }
+                    rt::renderer::Channel::Z(z) => convert_luma(z).save(hdr_path.join("depth.exr")),
                     rt::renderer::Channel::RayDepth(ray_depth) => {
                         convert_luma(ray_depth).save(hdr_path.join("ray_depth.exr"))
                     }
@@ -70,9 +66,7 @@ impl FinalOutput for FileOutput {
                     rt::renderer::Channel::Albedo(albedo) => {
                         convert_rgb(albedo).save(ldr_path.join("albedo.jpg"))
                     }
-                    rt::renderer::Channel::Z(z) => {
-                        convert_luma(z).save(ldr_path.join("depth.jpg"))
-                    }
+                    rt::renderer::Channel::Z(z) => convert_luma(z).save(ldr_path.join("depth.jpg")),
                     rt::renderer::Channel::RayDepth(ray_depth) => {
                         convert_luma(ray_depth).save(ldr_path.join("ray_depth.jpg"))
                     }

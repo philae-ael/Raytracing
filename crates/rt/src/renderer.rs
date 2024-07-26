@@ -1,7 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 
 use crate::{
-    aggregate::bvh::BVH,
     color::{self, Luma, Rgb},
     material::{MaterialDescriptor, MaterialId},
     math::{
@@ -9,7 +8,6 @@ use crate::{
         stat::RgbSeries,
         vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
     },
-    scene::Scene,
     shape::Shape,
 };
 
@@ -195,21 +193,9 @@ unsafe impl<T: Pod, L: Pod> Pod for GenericRenderResult<T, L> {}
 /// GenericRenderResult is inhabited and the all-zero pattern is allowed as they are valid for T and L
 unsafe impl<T: Zeroable, L: Zeroable> Zeroable for GenericRenderResult<T, L> {}
 
-pub struct World {
-    pub objects: Box<dyn Shape>,
-    pub lights: Vec<Point>,
+pub struct World<'a> {
+    pub objects: &'a dyn Shape,
+    pub lights: &'a [Point],
+    pub materials: &'a [MaterialDescriptor],
     pub world_material: MaterialId,
-    pub materials: Vec<MaterialDescriptor>,
-}
-
-impl World {
-    pub fn from_scene(scene: Scene) -> Self {
-        let objects = Box::new(BVH::from_shapelist(scene.objects));
-        Self {
-            objects,
-            lights: scene.lights,
-            world_material: scene.sky_material,
-            materials: scene.materials,
-        }
-    }
 }

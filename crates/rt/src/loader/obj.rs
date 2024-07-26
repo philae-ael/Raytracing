@@ -1,15 +1,15 @@
 use std::path::PathBuf;
 
+use glam::Vec3;
+
 use crate::{
-    aggregate::shapelist::{ShapeList, ShapeListEntry},
     color::Rgb,
     material::{texture, Diffuse, Emit, MaterialId, MixMaterial},
     math::{
         point::Point,
         transform::{Transform, Transformer},
     },
-    scene::Scene,
-    shape::TriangleBuilder,
+    scene::SceneT,
 };
 
 pub trait ObjLoaderExt {
@@ -21,10 +21,10 @@ pub trait ObjLoaderExt {
     );
 }
 
-impl ObjLoaderExt for Scene {
-    fn load_obj<T: Into<PathBuf>>(
+impl<S: SceneT> ObjLoaderExt for S {
+    fn load_obj<P: Into<PathBuf>>(
         &mut self,
-        mesh_path: T,
+        mesh_path: P,
         transform: Transform,
         default_material: MaterialId,
     ) {
@@ -33,11 +33,6 @@ impl ObjLoaderExt for Scene {
         let (models, materials) =
             tobj::load_obj(mesh_path.into(), &options).expect("Failed to load OBJ file");
 
-        // log::info!(
-        //     "Found {} models and {} materials",
-        //     models.len(),
-        //     materials.unwrap_or(vec![]).len(),
-        // );
         let mut material_ids = vec![];
 
         let has_non_default_materials = if let Ok(materials) = materials {
@@ -58,9 +53,9 @@ impl ObjLoaderExt for Scene {
                 });
 
                 let mat_id = if let Some(ke) = ke {
-                    self.insert_material(
-                        None,
-                        MixMaterial {
+                    self.insert_material(crate::material::MaterialDescriptor {
+                        label: None,
+                        material: Box::new(MixMaterial {
                             p: 0.5,
                             mat1: Diffuse {
                                 texture: Box::new(texture::Uniform(Rgb::from_array(
@@ -70,15 +65,15 @@ impl ObjLoaderExt for Scene {
                             mat2: Emit {
                                 texture: Box::new(texture::Uniform(Rgb::from_array(ke))),
                             },
-                        },
-                    )
+                        }),
+                    })
                 } else {
-                    self.insert_material(
-                        None,
-                        Diffuse {
+                    self.insert_material(crate::material::MaterialDescriptor {
+                        label: None,
+                        material: Box::new(Diffuse {
                             texture: Box::new(texture::Uniform(Rgb::from_array(material.diffuse))),
-                        },
-                    )
+                        }),
+                    })
                 };
 
                 log::debug!(
@@ -99,57 +94,27 @@ impl ObjLoaderExt for Scene {
             let mesh = model.mesh;
             let num_faces = mesh.indices.len() / 3;
             log::debug!("Loading model {}; {} faces", model.name, num_faces);
-
-            let mut triangles: ShapeList = Default::default();
-
-            log::debug!("indices: {:?}", mesh.indices);
             // TODO: Grab normals if any
-            let mut indices_slice = mesh.indices.as_slice();
-            for _ in 0..num_faces {
-                let indices = &indices_slice[0..3];
-                indices_slice = &indices_slice[3..];
+            // TODO: vertices are duplicated for each sub mesh... meh
 
-                #[allow(clippy::identity_op)]
-                let vertices = [
-                    Point::new(
-                        mesh.positions[(0 + indices[0] * 3) as usize],
-                        mesh.positions[(1 + indices[0] * 3) as usize],
-                        mesh.positions[(2 + indices[0] * 3) as usize],
-                    ),
-                    Point::new(
-                        mesh.positions[(0 + indices[1] * 3) as usize],
-                        mesh.positions[(1 + indices[1] * 3) as usize],
-                        mesh.positions[(2 + indices[1] * 3) as usize],
-                    ),
-                    Point::new(
-                        mesh.positions[(0 + indices[2] * 3) as usize],
-                        mesh.positions[(1 + indices[2] * 3) as usize],
-                        mesh.positions[(2 + indices[2] * 3) as usize],
-                    ),
-                ]
-                .map(|v| transform.apply(v));
+            let material = if has_non_default_materials {
+                match mesh.material_id {
+                    Some(mat_id) => *material_ids.get(mat_id).unwrap_or(&default_material),
+                    None => default_material,
+                }
+            } else {
+                default_material
+            };
 
-                log::debug!("Face for indices {:?} {vertices:?}", indices);
-
-                let material = if has_non_default_materials {
-                    match mesh.material_id {
-                        Some(mat_id) => *material_ids.get(mat_id).unwrap_or(&default_material),
-                        None => default_material,
-                    }
-                } else {
-                    default_material
-                };
-
-                triangles.0.push(ShapeListEntry::Shape(Box::new(
-                    TriangleBuilder {
-                        vertices,
-                        winding: Default::default(),
-                    }
-                    .build(material),
-                )));
-            }
-
-            self.insert_shape_list(triangles)
+            self.insert_mesh(
+                material,
+                &bytemuck::cast_slice(&mesh.positions)
+                    .iter()
+                    .map(|x| transform.apply(Point(Vec3::from_array(*x))).0.to_array())
+                    .collect::<Vec<[f32; 3]>>(),
+                bytemuck::cast_slice(&mesh.indices),
+                &Transform::default(),
+            );
         }
     }
 }

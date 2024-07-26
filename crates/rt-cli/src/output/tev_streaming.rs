@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use rand::{distributions::Alphanumeric, Rng};
 use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
-use crate::{cli::StreamingOutput, executor::TileMsg, Dimensions};
+use crate::{executor::TileMsg, renderer::StreamingOutput, Dimensions};
 
 const CHANNEL_COUNT: usize = 14;
 fn channel_names() -> [&'static str; CHANNEL_COUNT] {
@@ -35,14 +35,11 @@ fn channel_strides() -> [u64; CHANNEL_COUNT] {
 pub struct TevStreaming {
     client: TevClient,
     image_name: String,
-    tile_size: u32,
-    dimension: Dimensions,
 }
 
 impl TevStreaming {
     pub fn new(
         dimension: Dimensions,
-        tile_size: u32,
         tev_path: Option<String>,
         tev_hostname: Option<String>,
     ) -> Result<Self> {
@@ -96,12 +93,7 @@ impl TevStreaming {
             height: dimension.height,
         })?;
 
-        Ok(Self {
-            client,
-            image_name,
-            dimension,
-            tile_size,
-        })
+        Ok(Self { client, image_name })
     }
 }
 

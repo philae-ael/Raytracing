@@ -1,21 +1,19 @@
 use std::marker::PhantomData;
 
 use bytemuck::{Pod, Zeroable};
+use colorspace::Colorspace;
 
 pub mod colorspace;
 
-#[derive(Debug)]
-pub struct Color<S: colorspace::Colorspace>(pub [f32; 3], PhantomData<S>);
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
+pub struct Color<S>(pub [f32; 3], PhantomData<S>)
+where
+    S: colorspace::Colorspace;
 
-impl<S: colorspace::Colorspace> Copy for Color<S> {}
-impl<S: colorspace::Colorspace> Clone for Color<S> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-unsafe impl<S: colorspace::Colorspace> Zeroable for Color<S> {}
-unsafe impl<S: colorspace::Colorspace + 'static> Pod for Color<S> {}
+#[allow(non_camel_case_types)]
+pub type sRgb = Color<colorspace::sRGB>;
+pub type Rgb = Color<colorspace::Linear_RGB>;
 
 impl<S: colorspace::Colorspace> Color<S> {
     pub const fn from_array(arr: [f32; 3]) -> Self {
@@ -29,10 +27,6 @@ impl<S: colorspace::Colorspace> Color<S> {
     pub fn to_byte_array(self) -> [u8; 3] {
         self.0.map(|c| (c * 255. + 0.5) as u8)
     }
-
-    pub fn convert<S2: colorspace::Colorspace>(self) -> Color<S2> {
-        Color::from_array(S2::from_cie_xyz(S::to_cie_xyz(self.to_array())))
-    }
 }
 
 impl<S: colorspace::Colorspace> From<[f32; 3]> for Color<S> {
@@ -41,31 +35,55 @@ impl<S: colorspace::Colorspace> From<[f32; 3]> for Color<S> {
     }
 }
 
-#[allow(non_camel_case_types)]
-pub type sRgb = Color<colorspace::sRGB>;
-impl sRgb {
-    pub fn to_rgb(self) -> Rgb {
-        self.to_array()
-            .map(colorspace::Linear_sRGB::from_srgb)
-            .into()
-    }
+pub trait ColorspaceConversion<C: colorspace::Colorspace> {
+    fn convert(self) -> Color<C>;
 }
-pub type Rgb = Color<colorspace::Linear_sRGB>;
-impl Rgb {
-    pub fn to_srgb(self) -> sRgb {
-        self.to_array()
-            .map(colorspace::sRGB::from_linear_rgb)
-            .into()
+
+impl<C: colorspace::Colorspace> ColorspaceConversion<C> for Color<C> {
+    fn convert(self) -> Color<C> {
+        self
     }
 }
 
+macro_rules! default_colorspace_conversions {
+    ($c:ty) => {
+        impl ColorspaceConversion<colorspace::CIE_XYZ> for Color<$c> {
+            fn convert(self) -> Color<colorspace::CIE_XYZ> {
+                Color::from_array(<$c>::to_cie_xyz(self.to_array()))
+            }
+        }
+        impl ColorspaceConversion<$c> for Color<colorspace::CIE_XYZ> {
+            fn convert(self) -> Color<$c> {
+                Color::from_array(<$c>::from_cie_xyz(self.to_array()))
+            }
+        }
+    };
+}
+
+// == sRGB ==
+default_colorspace_conversions!(colorspace::sRGB);
+impl ColorspaceConversion<colorspace::Linear_RGB> for sRgb {
+    fn convert(self) -> Color<colorspace::Linear_RGB> {
+        Color::from_array(self.to_array().map(colorspace::sRGB::from_linear_rgb))
+    }
+}
+
+// == Linear RGB ==
+default_colorspace_conversions!(colorspace::Linear_RGB);
+impl ColorspaceConversion<colorspace::sRGB> for Rgb {
+    fn convert(self) -> Color<colorspace::sRGB> {
+        Color::from_array(self.to_array().map(colorspace::Linear_RGB::from_srgb))
+    }
+}
+
+// == Luma ==
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
 pub struct Luma(pub f32);
 
-impl<S: colorspace::Colorspace> From<Color<S>> for Luma {
-    fn from(val: Color<S>) -> Self {
-        Luma(val.convert::<colorspace::CIE_XYZ>().0[1])
+impl Luma {
+    pub fn from_color<C: ColorspaceConversion<colorspace::CIE_XYZ>>(val: C) -> Self {
+        Luma(val.convert().0[1])
     }
 }
 
@@ -89,9 +107,4 @@ pub mod linear {
     pub const RED: Rgb = Rgb::from_array([1.0, 0.0, 0.0]);
     pub const GREEN: Rgb = Rgb::from_array([0.0, 1.0, 0.0]);
     pub const BLUE: Rgb = Rgb::from_array([0.0, 0.0, 1.0]);
-}
-
-pub enum MixMode {
-    Add,
-    Mul,
 }

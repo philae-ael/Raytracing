@@ -10,7 +10,7 @@
 /// Source: Wikipedia, this good youtube video: https://youtu.be/AS1OHMW873s
 use glam::{Mat3, Vec3};
 
-pub trait Colorspace {
+pub trait Colorspace: Copy + Clone + Send + Sync + bytemuck::Zeroable + bytemuck::Pod {
     fn from_cie_xyz(coord: [f32; 3]) -> [f32; 3];
     fn to_cie_xyz(coord: [f32; 3]) -> [f32; 3];
 }
@@ -18,10 +18,11 @@ pub trait Colorspace {
 /// Linear sRGB: cover only a fraction of CIE XYZ. But yet good enough. Still linear, and has a basis composed of the primary colors: R,G and B
 ///
 /// The way to go for math manipulations and easy realistic usages
-#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Zeroable, bytemuck::Pod)]
 #[allow(non_camel_case_types)]
-pub struct Linear_sRGB;
-impl Linear_sRGB {
+pub struct Linear_RGB;
+impl Linear_RGB {
     pub fn from_srgb(srgb: f32) -> f32 {
         let srgb = srgb.clamp(0.0, 1.0);
         if srgb.is_nan() {
@@ -33,7 +34,8 @@ impl Linear_sRGB {
         }
     }
 }
-impl Colorspace for Linear_sRGB {
+
+impl Colorspace for Linear_RGB {
     fn from_cie_xyz(coord: [f32; 3]) -> [f32; 3] {
         let mat = Mat3::from_cols(
             Vec3::new(3.2406, -0.9689, 0.0557),
@@ -61,7 +63,8 @@ impl Colorspace for Linear_sRGB {
 /// YOU CAN'T DO MATH ON sRGB USE LINEAR sRGB OR XYZ
 ///
 /// The way to go for storage and sending data to displays. It's a transfert format
-#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Zeroable, bytemuck::Pod)]
 #[allow(non_camel_case_types)]
 pub struct sRGB;
 impl sRGB {
@@ -78,11 +81,11 @@ impl sRGB {
 }
 impl Colorspace for sRGB {
     fn from_cie_xyz(coord: [f32; 3]) -> [f32; 3] {
-        Linear_sRGB::from_cie_xyz(coord).map(Self::from_linear_rgb)
+        Linear_RGB::from_cie_xyz(coord).map(Self::from_linear_rgb)
     }
 
     fn to_cie_xyz(coord: [f32; 3]) -> [f32; 3] {
-        Linear_sRGB::from_cie_xyz(coord.map(Linear_sRGB::from_srgb))
+        Linear_RGB::from_cie_xyz(coord.map(Linear_RGB::from_srgb))
     }
 }
 
@@ -90,6 +93,8 @@ impl Colorspace for sRGB {
 /// CIE XYZ is the reference frame for colorspaces. All colorspaces can be obtained by a transformation of XYZ
 /// Its basis as a vector space is composed of non colors.
 /// Y is the relative luminance of the color (relative to the display max brightness)
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Zeroable, bytemuck::Pod)]
 #[allow(non_camel_case_types)]
 pub struct CIE_XYZ;
 impl Colorspace for CIE_XYZ {

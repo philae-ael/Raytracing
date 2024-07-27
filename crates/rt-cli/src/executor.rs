@@ -18,7 +18,7 @@ use rayon::iter::{
 };
 use rt::{
     camera::{Camera, PixelCoord, ViewportCoord},
-    color::{Luma, Rgb},
+    color::{ColorspaceConversion, Luma, Rgb},
     integrators::Integrator,
     renderer::{GenericRenderResult, PixelRenderResult, RaySeries, World},
     utils::counter::counter,
@@ -56,10 +56,10 @@ trait OutputBuffersExt<T, L> {
 }
 impl OutputBuffersExt<Rgb, Luma> for OutputBuffers {
     fn convert(&mut self, d: PixelRenderResult, x: u32, y: u32) {
-        *self.color.get_pixel_mut(x, y) = d.color.to_srgb().into();
-        *self.normal.get_pixel_mut(x, y) = d.normal.to_srgb().into();
-        *self.albedo.get_pixel_mut(x, y) = d.albedo.to_srgb().into();
-        *self.position.get_pixel_mut(x, y) = d.position.to_srgb().into();
+        *self.color.get_pixel_mut(x, y) = d.color.convert().into();
+        *self.normal.get_pixel_mut(x, y) = d.normal.convert().into();
+        *self.albedo.get_pixel_mut(x, y) = d.albedo.convert().into();
+        *self.position.get_pixel_mut(x, y) = d.position.convert().into();
         *self.z.get_pixel_mut(x, y) = d.z.into();
         *self.ray_depth.get_pixel_mut(x, y) = d.ray_depth.into();
     }

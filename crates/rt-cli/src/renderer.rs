@@ -1,20 +1,10 @@
-use std::{collections::HashSet, f32::consts::PI};
+use std::collections::HashSet;
 
 use anyhow::Result;
 use rt::{
-    aggregate::embree::EmbreeScene,
     camera::Camera,
-    color::Rgb,
-    loader::ObjLoaderExt,
-    material::{texture::Uniform, Diffuse, Emit, MaterialDescriptor},
-    math::{
-        point::Point,
-        quaternion::{LookAt, Quat},
-        transform::Transform,
-        vec::Vec3,
-    },
+    math::{point::Point, quaternion::LookAt, vec::Vec3},
     renderer::World,
-    scene::{examples::DragonScene, SceneT},
     utils::{counter, timer::timed_scope_log},
 };
 
@@ -39,31 +29,19 @@ pub trait FinalOutput: Send {
     fn commit(&self, output_buffers: &OutputBuffers) -> Result<()>;
 }
 
-pub struct Cli {
+pub struct Renderer {
     pub streaming_outputs: Vec<Box<dyn StreamingOutput>>,
     pub final_outputs: Vec<Box<dyn FinalOutput>>,
-    pub renderer: Executor,
+    pub executor: Executor,
     pub multithreaded: bool,
 }
-impl Cli {
-    pub fn new(args: Args) -> Result<Self> {
-        let outputs: HashSet<AvailableOutput> = HashSet::from_iter(args.output);
-        let tile_size = 32;
 
-        // TODO: REMOVE THOSE LEAK
-        let device = Box::leak::<'static>(Box::new(embree4_rs::Device::try_new(None).unwrap()));
-        let scene = Box::leak::<'static>(Box::new(EmbreeScene::new(device)));
+impl Renderer {
+    pub fn from_args(args: Args) -> Result<Self> {
+        let outputs: HashSet<AvailableOutput> = HashSet::from_iter(args.output);
 
         let executor = {
             let integrator = args.integrator.into();
-            let sky = scene.insert_material(MaterialDescriptor {
-                label: Some("Sky".into()),
-                material: Box::new(Emit {
-                    texture: Box::new(Uniform(Rgb::from_array([0.02, 0.02, 0.02]))),
-                }),
-            });
-            DragonScene::insert_into(scene);
-
             let look_at = Point::new(0.0, 0.0, -1.0);
             let look_from = Point::ORIGIN;
             let look_direction = look_at - look_from;
@@ -81,21 +59,12 @@ impl Cli {
                 0.0,
             );
 
-            let lights = std::mem::take(&mut scene.lights);
-            let materials = std::mem::take(&mut scene.materials);
-
             Executor {
                 dimension: args.dimensions,
                 samples_per_pixel: args.sample_per_pixel,
                 tile_size: args.tile_size.unwrap_or(32),
                 allowed_error: args.allowed_error,
                 integrator,
-                world: World {
-                    objects: Box::new(scene.commit()),
-                    lights: lights.into_iter().map(|x| x.light_pos).collect(),
-                    materials,
-                    world_material: sky,
-                },
                 camera,
             }
         };
@@ -103,7 +72,7 @@ impl Cli {
         let mut this = Self {
             streaming_outputs: Vec::new(),
             final_outputs: Vec::new(),
-            renderer: executor,
+            executor,
             multithreaded: !args.disable_threading,
         };
 
@@ -112,7 +81,6 @@ impl Cli {
                 AvailableOutput::Tev => {
                     this.streaming_outputs.push(Box::new(TevStreaming::new(
                         args.dimensions,
-                        tile_size,
                         args.tev_path.clone(),
                         args.tev_hostname.clone(),
                     )?));
@@ -126,7 +94,7 @@ impl Cli {
         Ok(this)
     }
 
-    pub fn run(mut self) -> Result<()> {
+    pub fn run(mut self, world: &World) -> Result<()> {
         let output_buffers = timed_scope_log("Run tile renderer", || {
             let f = |msg| {
                 self.streaming_outputs
@@ -142,9 +110,9 @@ impl Cli {
                     });
             };
             if self.multithreaded {
-                self.renderer.run_multithreaded(f)
+                self.executor.run_multithreaded(world, f)
             } else {
-                self.renderer.run_monothreaded(f)
+                self.executor.run_monothreaded(world, f)
             }
         })
         .res?;

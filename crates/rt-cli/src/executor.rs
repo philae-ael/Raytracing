@@ -44,7 +44,6 @@ pub struct Executor {
     pub samples_per_pixel: Spp,
     pub allowed_error: Option<f32>,
 
-    pub world: World,
     // TODO: make a pool of materials
     pub integrator: Box<dyn Integrator>,
     pub camera: Camera,
@@ -82,6 +81,7 @@ impl OutputBuffersExt<Rgb, Luma> for OutputBuffers {
 impl Executor {
     pub fn run_multithreaded<F: FnMut(TileMsg) + Send>(
         self,
+        world: &World,
         mut on_tile_rendered: F,
     ) -> anyhow::Result<OutputBuffers> {
         log::debug!("Monothreaded");
@@ -102,7 +102,6 @@ impl Executor {
 
                 loop {
                     let Some(msg) = rx.try_recv().ok() else {
-                        rayon::yield_now();
                         continue;
                     };
                     match msg {
@@ -118,17 +117,18 @@ impl Executor {
                     }
 
                     if last_progress_update.elapsed() >= std::time::Duration::from_millis(300) {
-                        print!("\r{progress}");
+                        progress.print();
                         let _ = std::io::stdout().flush();
                         last_progress_update = std::time::Instant::now();
                     }
                 }
-                print!("\r{progress}\n");
+                progress.print();
+                println!();
                 let _ = std::io::stdout().flush();
             });
 
             for samples in SampleCounter::new(32, ctx.executor.samples_per_pixel) {
-                ctx.dispatch_async(samples, &progress);
+                ctx.dispatch_async(world, samples, &progress);
             }
             tx.send(Message::Stop)
         });
@@ -144,6 +144,7 @@ impl Executor {
 
     pub fn run_monothreaded<F: FnMut(TileMsg)>(
         self,
+        world: &World,
         on_tile_rendered: F,
     ) -> anyhow::Result<OutputBuffers> {
         log::debug!("Monothreaded");
@@ -154,7 +155,7 @@ impl Executor {
         log::info!("Generating image...");
 
         for samples in SampleCounter::new(32, ctx.executor.samples_per_pixel) {
-            ctx.dispatch_sync(samples, &mut output_buffers, &progress);
+            ctx.dispatch_sync(world, samples, &mut output_buffers, &progress);
         }
         print!("\r{progress}\n");
 
@@ -163,7 +164,7 @@ impl Executor {
         Ok(output_buffers)
     }
 
-    fn build_ctx<F>(self, on_tile_rendered: F) -> (Ctx<F>, progress::Progress) {
+    fn build_ctx<F>(self, on_tile_rendered: F) -> (Dispatcher<F>, progress::Progress) {
         let tiler = Tiler {
             width: self.dimension.width,
             height: self.dimension.height,
@@ -174,9 +175,10 @@ impl Executor {
             Spp::Spp(s) => progress::Progress::new(s as usize * tiler.tile_count()),
             Spp::Inf => progress::Progress::new_inf(),
         };
+        progress.print();
 
         (
-            Ctx {
+            Dispatcher {
                 tiler,
                 tiles_data: tiler
                     .into_iter()
@@ -193,16 +195,16 @@ impl Executor {
         )
     }
 
-    fn tile_worker(&self, tile: Tile, data: &mut [RaySeries], sample_count: u32) {
+    fn tile_worker(&self, world: &World, tile: Tile, data: &mut [RaySeries], sample_count: u32) {
         log::trace!("working on tile {tile:?}");
         for (index, (x, y)) in tile.into_iter().enumerate() {
             data[index] = RaySeries::merge(
                 std::mem::take(&mut data[index]),
-                self.pixel_worker(PixelCoord { x, y }, sample_count),
+                self.pixel_worker(world, PixelCoord { x, y }, sample_count),
             );
         }
     }
-    fn pixel_worker(&self, coords: PixelCoord, samples: u32) -> RaySeries {
+    fn pixel_worker(&self, world: &World, coords: PixelCoord, samples: u32) -> RaySeries {
         let ViewportCoord { vx, vy } = ViewportCoord::from_pixel_coord(&self.camera, coords);
         let pixel_width = 1. / (self.camera.width as f32 - 1.);
         let pixel_height = 1. / (self.camera.height as f32 - 1.);
@@ -218,7 +220,7 @@ impl Executor {
             let dvy = distribution_y.sample(&mut rng);
             let camera_ray = self.camera.ray(vx + dvx, vy + dvy, &mut rng);
 
-            ray_series.add_sample(self.integrator.ray_cast(&self.world, camera_ray, 0));
+            ray_series.add_sample(self.integrator.ray_cast(world, camera_ray, 0));
 
             if let Some(allowed_error) = self.allowed_error {
                 if ray_series.color.is_precise_enough(allowed_error).is_some() {
@@ -232,24 +234,25 @@ impl Executor {
     }
 }
 
-struct Ctx<F> {
+struct Dispatcher<F> {
     tiler: Tiler,
     tiles_data: Vec<Vec<RaySeries>>,
     on_tile_rendered: F,
     executor: Executor,
 }
 
-impl<F: FnMut(TileMsg)> Ctx<F> {
+impl<F: FnMut(TileMsg)> Dispatcher<F> {
     fn dispatch_sync(
         &mut self,
+        world: &World,
         sample_count: u32,
         output_buffers: &mut OutputBuffers,
         progress: &progress::Progress,
     ) {
         for (tile, data) in self.tiler.into_iter().zip(self.tiles_data.iter_mut()) {
-            self.executor.tile_worker(tile, data, sample_count);
+            self.executor.tile_worker(world, tile, data, sample_count);
             progress.add(sample_count as _);
-            print!("\r{progress}");
+            progress.print();
             let _ = std::io::stdout().flush();
 
             let msg = TileMsg {
@@ -265,13 +268,13 @@ impl<F: FnMut(TileMsg)> Ctx<F> {
     }
 }
 
-impl<F: Fn(TileMsg) + Sync> Ctx<F> {
-    fn dispatch_async(&mut self, sample_count: u32, progress: &progress::Progress) {
+impl<F: Fn(TileMsg) + Sync> Dispatcher<F> {
+    fn dispatch_async(&mut self, world: &World, sample_count: u32, progress: &progress::Progress) {
         self.tiler
             .into_par_iter()
             .zip(self.tiles_data.par_iter_mut())
             .map(|(tile, data)| {
-                self.executor.tile_worker(tile, data, sample_count);
+                self.executor.tile_worker(world, tile, data, sample_count);
                 progress.add(sample_count as _);
 
                 TileMsg {

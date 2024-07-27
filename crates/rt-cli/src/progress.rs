@@ -38,6 +38,10 @@ impl Progress {
     pub fn get_raw(&self) -> usize {
         self.current.load(atomic::Ordering::SeqCst)
     }
+
+    pub fn print(&self) {
+        print!("\r{self}");
+    }
 }
 
 impl Display for Progress {

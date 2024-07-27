@@ -1,18 +1,17 @@
 use std::{collections::BTreeMap, mem::size_of};
 
+use anyhow::Result;
 use embree4_rs::{
     geometry::{Geometry, SphereGeometry},
     CommittedScene, Device, Scene, SceneOptions,
 };
 use embree4_sys::{RTCGeometry, RTCSceneFlags};
-use glam::Vec3;
 
 use crate::{
-    material::{LightDescriptor, MaterialDescriptor, MaterialId},
-    math::{
-        point::Point,
-        transform::{Transform, Transformer},
-    },
+    color::Rgb,
+    material::{texture::Uniform, Emit, MaterialDescriptor, MaterialId},
+    math::{point::Point, transform::Transform},
+    renderer::World,
     scene::SceneT,
     shape::{local_info, FullIntersectionResult, Shape},
 };
@@ -21,8 +20,9 @@ pub struct EmbreeScene<'a> {
     device: &'a Device,
     scene: Scene<'a>,
     pub materials: Vec<MaterialDescriptor>,
-    pub lights: Vec<LightDescriptor>,
+    pub lights: Vec<Point>,
     pub geometry_material: BTreeMap<<Self as SceneT>::GeometryHandle, MaterialId>,
+    sky_material: MaterialId,
 }
 
 impl<'a> EmbreeScene<'a> {
@@ -38,9 +38,15 @@ impl<'a> EmbreeScene<'a> {
         Self {
             device,
             scene,
-            materials: Default::default(),
+            materials: vec![MaterialDescriptor {
+                label: Some("Sky".into()),
+                material: Box::new(Emit {
+                    texture: Box::new(Uniform(Rgb::from_array([0.02, 0.02, 0.02]))),
+                }),
+            }],
             lights: Default::default(),
             geometry_material: Default::default(),
+            sky_material: MaterialId(0),
         }
     }
 
@@ -54,22 +60,35 @@ impl<'a> EmbreeScene<'a> {
         geom_id
     }
 
-    pub fn commit(&mut self) -> CommittedEmbreeScene {
-        CommittedEmbreeScene {
-            geometry_material: self.geometry_material.clone(),
-            scene: self.scene.commit().unwrap(),
-        }
+    pub fn commit<'c>(&'c self) -> Result<CommittedEmbreeScene<'c, 'a>> {
+        let commited = self.scene.commit()?;
+        Ok(CommittedEmbreeScene {
+            scene: self,
+            commited,
+        })
     }
 }
 
-pub struct CommittedEmbreeScene<'a> {
-    scene: CommittedScene<'a>,
-    geometry_material: BTreeMap<u32, MaterialId>,
+pub struct CommittedEmbreeScene<'a, 'b> {
+    scene: &'a EmbreeScene<'b>,
+    commited: CommittedScene<'b>,
 }
 
-unsafe impl Send for CommittedEmbreeScene<'_> {}
+unsafe impl Send for CommittedEmbreeScene<'_, '_> {}
+unsafe impl Sync for CommittedEmbreeScene<'_, '_> {}
 
-impl Shape for CommittedEmbreeScene<'_> {
+impl<'a, 'b> CommittedEmbreeScene<'a, 'b> {
+    pub fn into_world(&self) -> Result<World> {
+        Ok(World {
+            objects: self,
+            lights: &self.scene.lights,
+            materials: &self.scene.materials,
+            world_material: self.scene.sky_material,
+        })
+    }
+}
+
+impl Shape for CommittedEmbreeScene<'_, '_> {
     fn intersection_full(&self, ray: crate::ray::Ray) -> crate::shape::FullIntersectionResult {
         let r = embree4_sys::RTCRay {
             org_x: ray.origin.0.x,
@@ -83,7 +102,7 @@ impl Shape for CommittedEmbreeScene<'_> {
             ..Default::default()
         };
 
-        match self.scene.intersect_1(r).unwrap() {
+        match self.commited.intersect_1(r).unwrap() {
             Some(res) => FullIntersectionResult::Intersection(crate::shape::RayIntersection {
                 t: res.ray.tfar,
                 local_info: local_info::Full {
@@ -99,6 +118,7 @@ impl Shape for CommittedEmbreeScene<'_> {
                     }
                     .normalize_or_zero(),
                     material: self
+                        .scene
                         .geometry_material
                         .get(&res.hit.geomID)
                         .copied()
@@ -115,7 +135,7 @@ impl Shape for CommittedEmbreeScene<'_> {
     }
 
     fn bounding_box(&self) -> crate::math::bounds::Bounds {
-        let bounding = self.scene.bounds().unwrap();
+        let bounding = self.commited.bounds().unwrap();
 
         crate::math::bounds::Bounds {
             origin: crate::math::point::Point::new(
@@ -142,7 +162,7 @@ impl SceneT for EmbreeScene<'_> {
     }
 
     fn insert_light(&mut self, light: crate::material::LightDescriptor) {
-        self.lights.push(light);
+        self.lights.push(light.light_pos);
     }
 
     fn insert_mesh(

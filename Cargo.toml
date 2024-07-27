@@ -7,4 +7,6 @@ debug = 2
 
 [workspace.dependencies]
 embree4-rs = { git = "https://github.com/philae-ael/embree4-rs" }
+# embree4-rs = { path = "../embree4-rs/" }
 embree4-sys = "0.0.10"
+anyhow = "1"

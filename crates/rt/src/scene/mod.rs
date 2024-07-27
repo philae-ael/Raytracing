@@ -1,11 +1,9 @@
 pub mod examples;
 
-use glam::Vec3;
-
 use crate::{
     aggregate::shapelist::{ShapeList, ShapeListEntry},
-    material::{Material, MaterialDescriptor, MaterialId},
-    math::point::Point,
+    material::{LightDescriptor, Material, MaterialDescriptor, MaterialId},
+    math::{point::Point, transform::Transform},
     shape::Shape,
 };
 
@@ -54,4 +52,25 @@ impl Scene {
         });
         MaterialId(self.materials.len() - 1)
     }
+}
+
+pub trait SceneT {
+    type GeometryHandle;
+
+    fn insert_material(&mut self, mat: MaterialDescriptor) -> MaterialId;
+    fn insert_light(&mut self, light: LightDescriptor);
+    fn insert_mesh(
+        &mut self,
+        material: MaterialId,
+        vertices: &[[f32; 3]],
+        indices: &[[u32; 3]],
+        transform: &Transform,
+    ) -> Self::GeometryHandle;
+
+    fn insert_sphere(
+        &mut self,
+        material: MaterialId,
+        origin: Point,
+        radius: f32,
+    ) -> Self::GeometryHandle;
 }

@@ -94,8 +94,6 @@ impl Executor {
         let ctx = &mut ctx_;
         let generation_result = rayon::scope(|s: &Scope<'_>| {
             log::info!("Generating image...");
-
-            log::info!("Generating image...");
             s.spawn(|_| {
                 let output_buffers = &mut output_buffers;
                 let progress = &progress;

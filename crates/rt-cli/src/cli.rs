@@ -14,6 +14,7 @@ use rt::{
         vec::Vec3,
     },
     renderer::World,
+    scene::{examples::DragonScene, SceneT},
     utils::{counter, timer::timed_scope_log},
 };
 
@@ -49,20 +50,19 @@ impl Cli {
         let outputs: HashSet<AvailableOutput> = HashSet::from_iter(args.output);
         let tile_size = 32;
 
+        // TODO: REMOVE THOSE LEAK
+        let device = Box::leak::<'static>(Box::new(embree4_rs::Device::try_new(None).unwrap()));
+        let scene = Box::leak::<'static>(Box::new(EmbreeScene::new(device)));
+
         let executor = {
             let integrator = args.integrator.into();
-
-            let mut scene = EmbreeScene::new(embree4_rs::Device::try_new(None).unwrap());
-            scene.load_obj(
-                "obj/dragon.obj",
-                Transform {
-                    translation: Vec3::new(0.0, 0.0, -1.0),
-                    scale: 0.01 * Vec3::ONE,
-                    rot: Quat::from_axis_angle(Vec3::Y, 1.1 * PI),
-                },
-                rt::material::MaterialId(0),
-            );
-            let scene = scene.commit();
+            let sky = scene.insert_material(MaterialDescriptor {
+                label: Some("Sky".into()),
+                material: Box::new(Emit {
+                    texture: Box::new(Uniform(Rgb::from_array([0.02, 0.02, 0.02]))),
+                }),
+            });
+            DragonScene::insert_into(scene);
 
             let look_at = Point::new(0.0, 0.0, -1.0);
             let look_from = Point::ORIGIN;
@@ -81,6 +81,9 @@ impl Cli {
                 0.0,
             );
 
+            let lights = std::mem::take(&mut scene.lights);
+            let materials = std::mem::take(&mut scene.materials);
+
             Executor {
                 dimension: args.dimensions,
                 samples_per_pixel: args.sample_per_pixel,
@@ -88,23 +91,10 @@ impl Cli {
                 allowed_error: args.allowed_error,
                 integrator,
                 world: World {
-                    objects: Box::new(scene),
-                    lights: vec![Point::new(10.2, 80.0, 75.0)],
-                    world_material: rt::material::MaterialId(1),
-                    materials: vec![
-                        MaterialDescriptor {
-                            label: Some("Material".into()),
-                            material: Box::new(Diffuse {
-                                texture: Box::new(Uniform(Rgb::from_array([0.5; 3]))),
-                            }),
-                        },
-                        MaterialDescriptor {
-                            label: Some("Sky".into()),
-                            material: Box::new(Emit {
-                                texture: Box::new(Uniform(Rgb::from_array([0.2, 0.2, 0.2]))),
-                            }),
-                        },
-                    ],
+                    objects: Box::new(scene.commit()),
+                    lights: lights.into_iter().map(|x| x.light_pos).collect(),
+                    materials,
+                    world_material: sky,
                 },
                 camera,
             }

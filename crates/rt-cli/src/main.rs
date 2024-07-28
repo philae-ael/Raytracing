@@ -8,7 +8,7 @@ mod renderer;
 mod tile;
 mod utils;
 
-use anyhow::Ok;
+use anyhow::{Ok, Result};
 use clap::Parser;
 use renderer::Renderer;
 use rt::aggregate::embree::EmbreeScene;
@@ -49,18 +49,35 @@ pub struct Args {
     disable_threading: bool,
 }
 
+fn build_device() -> Result<embree4_rs::device::Device> {
+    let device = embree4_rs::device::Device::try_new(None)?;
+
+    std::mem::forget(device.register_error_callback(|code, err| {
+        log::error!(target:"embree", "Embree error ({code:?}): {err}");
+    }));
+
+    std::mem::forget(
+        device.register_device_memory_monitor_callback(|amount, _post| {
+            log::debug!(target:"embree", "allocation {amount}bytes");
+            true
+        }),
+    );
+
+    Ok(device)
+}
+
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let args = Args::parse();
 
-    let device = embree4_rs::Device::try_new(None)?;
-    let scene = {
-        let mut scene = EmbreeScene::new(&device);
-        args.scene.insert_into(&mut scene);
-        scene
-    };
+    let device = build_device()?;
+    let mut scene = EmbreeScene::new(&device);
+    args.scene.insert_into(&mut scene);
+    let commited_scene = scene.commit_with_progress(|amount| {
+        log::debug!(target:"embree::scene", "progress: {amount}");
+        true
+    })?;
 
-    let commited_scene = scene.commit()?;
     let world = commited_scene.into_world()?;
 
     let renderer = Renderer::from_args(args)?;

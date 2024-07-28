@@ -2,8 +2,9 @@ use std::{collections::BTreeMap, mem::size_of};
 
 use anyhow::Result;
 use embree4_rs::{
+    device::Device,
     geometry::{Geometry, SphereGeometry},
-    CommittedScene, Device, Scene, SceneOptions,
+    scene::{CommittedScene, Scene, SceneOptions},
 };
 use embree4_sys::{RTCGeometry, RTCSceneFlags};
 
@@ -60,12 +61,21 @@ impl<'a> EmbreeScene<'a> {
         geom_id
     }
 
-    pub fn commit<'c>(&'c self) -> Result<CommittedEmbreeScene<'c, 'a>> {
+    pub fn commit<'c>(&'c mut self) -> Result<CommittedEmbreeScene<'c, 'a>> {
         let commited = self.scene.commit()?;
         Ok(CommittedEmbreeScene {
             scene: self,
             commited,
         })
+    }
+    pub fn commit_with_progress<'c, F: FnMut(f64) -> bool>(
+        &'c mut self,
+        progress_callback: F,
+    ) -> Result<CommittedEmbreeScene<'c, 'a>> {
+        let _p = self
+            .scene
+            .register_scene_progress_monitor_callback(progress_callback);
+        self.commit()
     }
 }
 
@@ -230,20 +240,6 @@ impl SceneT for EmbreeScene<'_> {
 
             unsafe { std::slice::from_raw_parts_mut(index_buf_ptr as *mut u32, 3 * indices.len()) }
                 .copy_from_slice(bytemuck::cast_slice(indices));
-
-            // let mat = transform.into_matrix();
-            // let v = mat.to_cols_array();
-            // unsafe {
-            //     embree4_sys::rtcSetGeometryTransform(
-            //         geometry,
-            //         0,
-            //         embree4_sys::RTCFormat::FLOAT4X4_COLUMN_MAJOR,
-            //         v.as_ptr() as *const c_voi,
-            //     )
-            // };
-            // if let Some(err) = self.device.error() {
-            //     panic!("Failed to set triangle mesh geometry transform {:?}", err);
-            // }
 
             unsafe {
                 embree4_sys::rtcCommitGeometry(geometry);

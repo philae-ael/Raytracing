@@ -16,7 +16,7 @@ impl Ray {
         Self {
             origin,
             direction: direction.normalize(),
-            bounds: (0.0, std::f32::INFINITY),
+            bounds: (0.0, f32::INFINITY),
         }
     }
     pub fn new_with_range(origin: Point, direction: Vec3, range: Range<f32>) -> Self {

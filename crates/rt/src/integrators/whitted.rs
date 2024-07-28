@@ -1,5 +1,3 @@
-use std::f32::INFINITY;
-
 use glam::Vec3;
 
 use crate::{
@@ -24,7 +22,10 @@ impl Integrator for WhittedIntegrator {
 
         let mut ray_depth = (depth + 1) as f32;
 
-        let IntersectionResult::Intersection(intersection)= world.objects.intersection_full(ray) else {return self.sky_ray(world, ray);};
+        let IntersectionResult::Intersection(intersection) = world.objects.intersection_full(ray)
+        else {
+            return self.sky_ray(world, ray);
+        };
 
         let MaterialDescriptor { ref material, .. } =
             world.materials[intersection.local_info.material.0];
@@ -32,12 +33,16 @@ impl Integrator for WhittedIntegrator {
         let normal = intersection.local_info.normal;
 
         let ambiant = 'emissive: {
-            let Some(emissive) = material.emissive() else {break 'emissive Vec3::ZERO};
+            let Some(emissive) = material.emissive() else {
+                break 'emissive Vec3::ZERO;
+            };
 
             emissive
         };
         let (albedo, diffuse) = 'diffuse: {
-            let Some(albedo) = material.diffuse() else {break 'diffuse (Vec3::ZERO, Vec3::ZERO);};
+            let Some(albedo) = material.diffuse() else {
+                break 'diffuse (Vec3::ZERO, Vec3::ZERO);
+            };
             let mut diffuse = Vec3::ZERO;
 
             for light_pos in world.lights.iter() {
@@ -54,10 +59,15 @@ impl Integrator for WhittedIntegrator {
         };
 
         let transmission = 'transmission: {
-            let Some((ior, transmission_color)) = material.transmission() else {break 'transmission Vec3::ZERO;};
-            let Some(refracted) = ray.direction.refract(-intersection.local_info.normal, ior) else {break 'transmission Vec3::ZERO;};
+            let Some((ior, transmission_color)) = material.transmission() else {
+                break 'transmission Vec3::ZERO;
+            };
+            let Some(refracted) = ray.direction.refract(-intersection.local_info.normal, ior)
+            else {
+                break 'transmission Vec3::ZERO;
+            };
 
-            let refracted_ray = Ray::new_with_range(position, refracted, 0.01..INFINITY);
+            let refracted_ray = Ray::new_with_range(position, refracted, 0.01..f32::INFINITY);
             let refracted_ray_result = self.ray_cast(world, refracted_ray, depth + 1);
             ray_depth = ray_depth.max(refracted_ray_result.ray_depth);
 
@@ -65,10 +75,12 @@ impl Integrator for WhittedIntegrator {
         };
 
         let reflection = 'reflection: {
-            let Some(reflection_color) = material.reflection() else {break 'reflection Vec3::ZERO;};
+            let Some(reflection_color) = material.reflection() else {
+                break 'reflection Vec3::ZERO;
+            };
             let reflected = ray.direction.reflect(intersection.local_info.normal);
 
-            let reflected_ray = Ray::new_with_range(position, reflected, 0.01..INFINITY);
+            let reflected_ray = Ray::new_with_range(position, reflected, 0.01..f32::INFINITY);
             let reflected_ray_result = self.ray_cast(world, reflected_ray, depth + 1);
             ray_depth = ray_depth.max(reflected_ray_result.ray_depth);
 

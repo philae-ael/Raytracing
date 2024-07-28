@@ -23,10 +23,9 @@ impl Integrator for BasicIntegrator {
         // Prevent auto intersection
         let ray = Ray::new_with_range(ray.origin, ray.direction, 0.01..ray.bounds.1);
 
-        let isect = timed_scope_accumulate!("Intersection", || {
-            world.objects.intersection_full(ray)
-        });
-        let IntersectionResult::Intersection(record) = isect else  {
+        let isect =
+            timed_scope_accumulate!("Intersection", || { world.objects.intersection_full(ray) });
+        let IntersectionResult::Intersection(record) = isect else {
             return self.sky_ray(world, ray);
         };
 

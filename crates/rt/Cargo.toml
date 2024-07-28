@@ -10,7 +10,7 @@ anyhow.workspace = true
 bytemuck = { version = "1.12.1", features = ["derive"] }
 embree4-rs.workspace = true
 embree4-sys.workspace = true
-glam = "0.21.3"
+glam.workspace = true
 image = "0.24.4"
 lazy_static = "1.4.0"
 log = "0.4.17"

@@ -30,7 +30,7 @@ impl<S: SceneT> ObjLoaderExt for S {
     ) {
         let mut options = tobj::GPU_LOAD_OPTIONS;
         options.single_index = true;
-        let (models, materials) =
+        let (mut models, materials) =
             tobj::load_obj(mesh_path.into(), &options).expect("Failed to load OBJ file");
 
         let mut material_ids = vec![];
@@ -90,10 +90,10 @@ impl<S: SceneT> ObjLoaderExt for S {
             false
         };
 
-        for model in models {
-            let mesh = model.mesh;
-            let num_faces = mesh.indices.len() / 3;
-            log::debug!("Loading model {}; {} faces", model.name, num_faces);
+        for model in &mut models {
+            let mesh = &mut model.mesh;
+            log::debug!("Loading model {}", model.name);
+
             // TODO: Grab normals if any
             // TODO: vertices are duplicated for each sub mesh... meh
 
@@ -106,14 +106,18 @@ impl<S: SceneT> ObjLoaderExt for S {
                 default_material
             };
 
+            assert!(mesh.positions.len() % 3 == 0);
+            let vertices: &mut [Vec3] = bytemuck::cast_slice_mut(&mut mesh.positions);
+
+            // Apply transform in place
+            for point in vertices {
+                *point = transform.apply(Point(*point)).vec()
+            }
+
             self.insert_mesh(
                 material,
-                &bytemuck::cast_slice(&mesh.positions)
-                    .iter()
-                    .map(|x| transform.apply(Point(Vec3::from_array(*x))).0.to_array())
-                    .collect::<Vec<[f32; 3]>>(),
+                bytemuck::cast_slice(&mesh.positions),
                 bytemuck::cast_slice(&mesh.indices),
-                &Transform::default(),
             );
         }
     }

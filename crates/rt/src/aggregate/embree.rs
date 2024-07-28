@@ -10,7 +10,7 @@ use embree4_sys::{RTCGeometry, RTCSceneFlags};
 use crate::{
     color::Rgb,
     material::{texture::Uniform, Emit, MaterialDescriptor, MaterialId},
-    math::{point::Point, transform::Transform},
+    math::point::Point,
     renderer::World,
     scene::SceneT,
     shape::{local_info, FullIntersectionResult, Shape},
@@ -170,7 +170,6 @@ impl SceneT for EmbreeScene<'_> {
         material: MaterialId,
         vertices: &[[f32; 3]],
         indices: &[[u32; 3]],
-        transform: &Transform,
     ) -> Self::GeometryHandle {
         let geometry = {
             let geometry = unsafe {

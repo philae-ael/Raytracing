@@ -1,5 +1,6 @@
 use std::{
     io::Write,
+    ops::Range,
     sync::mpsc::{channel, Receiver},
 };
 
@@ -10,9 +11,9 @@ use crate::{
 
 use super::progress;
 
+use bytemuck::bytes_of;
 use image::{ImageBuffer, Rgb32FImage};
-use rand::distributions;
-use rand::prelude::Distribution;
+use rand::SeedableRng;
 use rayon::{
     iter::{
         IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
@@ -23,8 +24,9 @@ use rt::{
     camera::{Camera, PixelCoord, ViewportCoord},
     color::{ColorspaceConversion, Luma, Rgb},
     integrators::Integrator,
-    renderer::{GenericRenderResult, PixelRenderResult, RaySeries, World},
+    renderer::{GenericRenderResult, PixelRenderResult, RayResult, RaySeries, World},
     utils::counter::counter,
+    Ctx,
 };
 
 enum Message {
@@ -47,6 +49,8 @@ pub struct Executor {
     // TODO: make a pool of materials
     pub integrator: Box<dyn Integrator>,
     pub camera: Camera,
+
+    pub seed: u64,
 }
 
 type Luma32FImage = image::ImageBuffer<image::Luma<f32>, Vec<f32>>;
@@ -150,12 +154,12 @@ impl Executor {
         log::debug!("Monothreaded");
 
         let mut output_buffers = OutputBuffers::new(self.dimension);
-        let (mut ctx, progress) = self.build_ctx(on_tile_rendered);
+        let (mut dispatcher, progress) = self.build_ctx(on_tile_rendered);
 
         log::info!("Generating image...");
 
-        for samples in SampleCounter::new(32, ctx.executor.samples_per_pixel) {
-            ctx.dispatch_sync(world, samples, &mut output_buffers, &progress);
+        for samples in SampleCounter::new(32, dispatcher.executor.samples_per_pixel) {
+            dispatcher.dispatch_sync(world, samples, &mut output_buffers, &progress);
         }
         print!("\r{progress}\n");
 
@@ -195,42 +199,43 @@ impl Executor {
         )
     }
 
-    fn tile_worker(&self, world: &World, tile: Tile, data: &mut [RaySeries], sample_count: u32) {
+    fn tile_worker(&self, world: &World, tile: Tile, data: &mut [RaySeries], samples: &Range<u32>) {
+        assert_eq!(data.len(), tile.len());
+
         log::trace!("working on tile {tile:?}");
         for (index, (x, y)) in tile.into_iter().enumerate() {
-            data[index] = RaySeries::merge(
-                std::mem::take(&mut data[index]),
-                self.pixel_worker(world, PixelCoord { x, y }, sample_count),
-            );
-        }
-    }
-    fn pixel_worker(&self, world: &World, coords: PixelCoord, samples: u32) -> RaySeries {
-        let ViewportCoord { vx, vy } = ViewportCoord::from_pixel_coord(&self.camera, coords);
-        let pixel_width = 1. / (self.camera.width as f32 - 1.);
-        let pixel_height = 1. / (self.camera.height as f32 - 1.);
-        let distribution_x = distributions::Uniform::new(-pixel_width / 2., pixel_width / 2.);
-        let distribution_y = distributions::Uniform::new(-pixel_height / 2., pixel_height / 2.);
+            for sample in samples.clone() {
+                let mut ctx = Ctx {
+                    rng: rand::rngs::StdRng::from_seed(
+                        Seed {
+                            x,
+                            y,
+                            sample,
+                            seed: self.seed,
+                        }
+                        .as_seed(),
+                    ),
+                    world,
+                };
 
-        let mut rng = rand::thread_rng();
-        let mut ray_series = RaySeries::default();
+                data[index].add_sample(self.pixel_worker(&mut ctx, x, y));
 
-        for _ in 0..samples {
-            counter!("Samples");
-            let dvx = distribution_x.sample(&mut rng);
-            let dvy = distribution_y.sample(&mut rng);
-            let camera_ray = self.camera.ray(vx + dvx, vy + dvy, &mut rng);
-
-            ray_series.add_sample(self.integrator.ray_cast(world, camera_ray, 0));
-
-            if let Some(allowed_error) = self.allowed_error {
-                if ray_series.color.is_precise_enough(allowed_error).is_some() {
-                    counter!("Adaptative sampling break");
-                    break;
+                if let Some(allowed_error) = self.allowed_error {
+                    if data[index].color.is_precise_enough(allowed_error).is_some() {
+                        counter!("Adaptative sampling break");
+                        break;
+                    }
                 }
             }
         }
+    }
 
-        ray_series
+    fn pixel_worker(&self, ctx: &mut Ctx, x: u32, y: u32) -> RayResult {
+        let coords = PixelCoord::sample_around(ctx, x, y);
+        let vcoords = ViewportCoord::from_pixel_coord(&self.camera, coords);
+        let camera_ray = self.camera.ray(ctx, vcoords);
+
+        self.integrator.ray_cast(ctx, camera_ray, 0)
     }
 }
 
@@ -245,13 +250,14 @@ impl<F: FnMut(TileMsg)> Dispatcher<F> {
     fn dispatch_sync(
         &mut self,
         world: &World,
-        sample_count: u32,
+        samples: Range<u32>,
         output_buffers: &mut OutputBuffers,
         progress: &progress::Progress,
     ) {
         for (tile, data) in self.tiler.into_iter().zip(self.tiles_data.iter_mut()) {
-            self.executor.tile_worker(world, tile, data, sample_count);
-            progress.add(sample_count as _);
+            self.executor.tile_worker(world, tile, data, &samples);
+
+            progress.add(samples.len() as _);
             progress.print();
             let _ = std::io::stdout().flush();
 
@@ -269,13 +275,18 @@ impl<F: FnMut(TileMsg)> Dispatcher<F> {
 }
 
 impl<F: Fn(TileMsg) + Sync> Dispatcher<F> {
-    fn dispatch_async(&mut self, world: &World, sample_count: u32, progress: &progress::Progress) {
+    fn dispatch_async(
+        &mut self,
+        world: &World,
+        samples: Range<u32>,
+        progress: &progress::Progress,
+    ) {
         self.tiler
             .into_par_iter()
             .zip(self.tiles_data.par_iter_mut())
             .map(|(tile, data)| {
-                self.executor.tile_worker(world, tile, data, sample_count);
-                progress.add(sample_count as _);
+                self.executor.tile_worker(world, tile, data, &samples);
+                progress.add(samples.len() as _);
 
                 TileMsg {
                     tile,
@@ -286,31 +297,59 @@ impl<F: Fn(TileMsg) + Sync> Dispatcher<F> {
     }
 }
 
+#[derive(Debug, bytemuck::Pod, bytemuck::Zeroable, Copy, Clone)]
+#[repr(C, packed)]
+struct Seed {
+    seed: u64,
+    x: u32,
+    y: u32,
+    sample: u32,
+}
+
+impl Seed {
+    pub fn as_seed(&self) -> <rand::rngs::StdRng as rand::SeedableRng>::Seed {
+        let mut seed: <rand::rngs::StdRng as rand::SeedableRng>::Seed = Default::default();
+
+        seed[0..std::mem::size_of::<Self>()].copy_from_slice(bytes_of(self));
+
+        seed
+    }
+}
+
 struct SampleCounter {
     batch_size: u32,
+    cur: u32,
     spp: Spp,
 }
 
 impl SampleCounter {
     fn new(batch_size: u32, spp: Spp) -> Self {
-        Self { batch_size, spp }
+        Self {
+            batch_size,
+            spp,
+            cur: 0,
+        }
     }
 }
 
 impl Iterator for SampleCounter {
-    type Item = u32;
+    type Item = Range<u32>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match &mut self.spp {
+        let samples = match &mut self.spp {
             Spp::Spp(s) => {
                 if *s == 0 {
                     return None;
                 }
                 let samples = u32::min(self.batch_size, *s);
                 *s -= samples;
-                Some(samples)
+                samples
             }
-            Spp::Inf => Some(self.batch_size),
-        }
+            Spp::Inf => self.batch_size,
+        };
+
+        let res = Some(self.cur..(self.cur + samples));
+        self.cur += samples;
+        res
     }
 }

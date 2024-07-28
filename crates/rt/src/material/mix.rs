@@ -16,7 +16,7 @@ impl<Mat1: Material, Mat2: Material> Material for MixMaterial<Mat1, Mat2> {
         &self,
         ray: Ray,
         record: &local_info::Full,
-        rng: &mut rand::rngs::ThreadRng,
+        rng: &mut rand::rngs::StdRng,
     ) -> Scattered {
         let dist = distributions::Uniform::new_inclusive(0.0, 1.0);
         let sample = dist.sample(rng);

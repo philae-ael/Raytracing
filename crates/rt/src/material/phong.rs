@@ -21,7 +21,7 @@ impl Material for Phong {
         &self,
         ray: Ray,
         record: &local_info::Full,
-        _rng: &mut rand::rngs::ThreadRng,
+        _rng: &mut rand::rngs::StdRng,
     ) -> Scattered {
         let light_dir = self.light_dir.normalize();
         let diffuse = record.normal.dot(light_dir) * self.albedo.vec();

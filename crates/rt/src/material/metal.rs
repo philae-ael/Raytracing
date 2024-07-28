@@ -22,7 +22,7 @@ impl Material for Metal {
         &self,
         ray: Ray,
         record: &local_info::Full,
-        rng: &mut rand::rngs::ThreadRng,
+        rng: &mut rand::rngs::StdRng,
     ) -> Scattered {
         let ray_direction = ray.direction.reflect(record.normal);
         let fuziness = self.roughness

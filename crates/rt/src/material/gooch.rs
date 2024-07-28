@@ -23,7 +23,7 @@ impl Material for Gooch {
         &self,
         ray: Ray,
         record: &local_info::Full,
-        _rng: &mut rand::rngs::ThreadRng,
+        _rng: &mut rand::rngs::StdRng,
     ) -> Scattered {
         let light_dir = self.light_dir.normalize();
         let gooch_factor = (1. + record.normal.dot(light_dir)) / 2.;

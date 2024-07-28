@@ -21,7 +21,7 @@ impl Material for Diffuse {
         &self,
         ray: Ray,
         record: &local_info::Full,
-        rng: &mut rand::rngs::ThreadRng,
+        rng: &mut rand::rngs::StdRng,
     ) -> Scattered {
         let bounce_noise =
             Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));

@@ -23,7 +23,7 @@ pub trait Material: Sync + Send {
         &self,
         ray: Ray,
         record: &local_info::Full,
-        rng: &mut rand::rngs::ThreadRng,
+        rng: &mut rand::rngs::StdRng,
     ) -> Scattered;
 
     fn transmission(&self) -> Option<(f32, Vec3)> {

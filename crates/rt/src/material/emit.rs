@@ -11,7 +11,7 @@ impl Material for Emit {
         &self,
         _ray: Ray,
         record: &local_info::Full,
-        _rng: &mut rand::rngs::ThreadRng,
+        _rng: &mut rand::rngs::StdRng,
     ) -> Scattered {
         Scattered {
             ray_out: None,

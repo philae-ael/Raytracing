@@ -48,6 +48,9 @@ pub struct Args {
 
     #[arg(long, default_value_t = false)]
     disable_threading: bool,
+
+    #[arg(long, default_value_t)]
+    seed: u64,
 }
 
 fn build_device() -> Result<embree4_rs::device::Device> {
@@ -95,7 +98,6 @@ fn main() -> anyhow::Result<()> {
     let world = commited_scene.into_world()?;
 
     let renderer = Renderer::from_args(args)?;
-
     renderer.run(&world)?;
 
     Ok(())

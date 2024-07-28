@@ -67,6 +67,7 @@ impl Renderer {
                 allowed_error: args.allowed_error,
                 integrator,
                 camera,
+                seed: args.seed,
             }
         };
 

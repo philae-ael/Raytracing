@@ -11,12 +11,10 @@ pub mod scene;
 pub mod shape;
 pub mod utils;
 
-use anyhow::Result;
+use rand::rngs::StdRng;
+use renderer::World;
 
-pub struct Ctx {}
-
-impl Ctx {
-    pub fn new() -> Result<Self> {
-        Ok(Self {})
-    }
+pub struct Ctx<'a> {
+    pub rng: StdRng,
+    pub world: &'a World<'a>,
 }

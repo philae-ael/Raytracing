@@ -19,7 +19,7 @@ impl Material for Dielectric {
         &self,
         ray: Ray,
         record: &local_info::Full,
-        rng: &mut rand::rngs::ThreadRng,
+        rng: &mut rand::rngs::StdRng,
     ) -> Scattered {
         let sampler = distributions::Uniform::new_inclusive(0.0, 1.0);
         let cos_incident = record.normal.dot(ray.direction);

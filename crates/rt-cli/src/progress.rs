@@ -71,17 +71,29 @@ impl Display for Progress {
                 )
             }
             MaxProgress::Finite(max) => {
-                let val = (self.get_raw() as f32 / max as f32).clamp(0.0, 1.0);
-                let width = ((n - 1) as f32 * val).round() as usize;
-                write!(
-                    f,
-                    "[{empty:=>width_left$}>{empty:.<width_right$}] {val:.1}%",
-                    empty = "",
-                    width_left = width,
-                    width_right = n - 1 - width,
-                    val = 100. * val
-                )
+                let percent = (self.get_raw() as f32 / max as f32).clamp(0.0, 1.0);
+                PercentBar { percent, width: n }.fmt(f)
             }
         }
+    }
+}
+
+pub struct PercentBar {
+    pub percent: f32,
+    pub width: usize,
+}
+
+impl Display for PercentBar {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let filled = ((self.width - 1) as f32 * self.percent).round() as usize;
+        write!(
+            f,
+            "[{empty:=>width_left$}>{empty:.<width_right$}] {percent:.1}%",
+            empty = "",
+            width_left = filled,
+            width_right = self.width - 1 - filled,
+            percent = 100. * self.percent
+        )
     }
 }

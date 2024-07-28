@@ -38,6 +38,7 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn from_args(args: Args) -> Result<Self> {
+        log::info!("building renderer");
         let outputs: HashSet<AvailableOutput> = HashSet::from_iter(args.output);
 
         let executor = {
@@ -95,7 +96,8 @@ impl Renderer {
     }
 
     pub fn run(mut self, world: &World) -> Result<()> {
-        let output_buffers = timed_scope_log("Run tile renderer", || {
+        log::info!("rendering");
+        let output_buffers = timed_scope_log("run tile renderer", || {
             let f = |msg| {
                 self.streaming_outputs
                     .iter_mut()
@@ -103,7 +105,7 @@ impl Renderer {
                         Ok(_) => (),
                         Err(err) => {
                             log::error!(
-                                "Streaming output errored, it will not be used anymore: {err}"
+                                "streaming output errored, it will not be used anymore: {err}"
                             );
                             *output = Box::new(DummyOutput {});
                         }
@@ -121,7 +123,6 @@ impl Renderer {
             final_output.commit(&output_buffers)?;
         }
 
-        log::info!("Done");
         counter::report_counters();
         Ok(())
     }

@@ -8,8 +8,9 @@ mod renderer;
 mod tile;
 mod utils;
 
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use clap::Parser;
+use progress::PercentBar;
 use renderer::Renderer;
 use rt::aggregate::embree::EmbreeScene;
 use utils::{AvailableIntegrator, AvailableOutput, AvailableScene, Dimensions, Spp};
@@ -50,6 +51,7 @@ pub struct Args {
 }
 
 fn build_device() -> Result<embree4_rs::device::Device> {
+    log::info!("building embree device");
     let device = embree4_rs::device::Device::try_new(None)?;
 
     std::mem::forget(device.register_error_callback(|code, err| {
@@ -71,12 +73,24 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let device = build_device()?;
+
+    log::info!("loading scene");
     let mut scene = EmbreeScene::new(&device);
     args.scene.insert_into(&mut scene);
+
+    log::info!("building scene");
     let commited_scene = scene.commit_with_progress(|amount| {
-        log::debug!(target:"embree::scene", "progress: {amount}");
+        // log::info!(target:"embree::scene", "progress: {}%", amount*100);
+        print!(
+            "\r{}",
+            PercentBar {
+                percent: amount as _,
+                width: 50
+            }
+        );
         true
     })?;
+    println!();
 
     let world = commited_scene.into_world()?;
 

@@ -11,10 +11,11 @@ pub mod scene;
 pub mod shape;
 pub mod utils;
 
-use rand::rngs::StdRng;
+pub use rand_xoshiro::Xoshiro256StarStar as Rng;
+
 use renderer::World;
 
 pub struct Ctx<'a> {
-    pub rng: StdRng,
+    pub rng: Rng,
     pub world: &'a World<'a>,
 }

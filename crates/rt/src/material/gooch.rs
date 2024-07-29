@@ -5,6 +5,7 @@ use crate::{
     math::vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
     shape::local_info,
+    Rng,
 };
 
 use super::{Material, Scattered};
@@ -19,12 +20,7 @@ pub struct Gooch {
 }
 
 impl Material for Gooch {
-    fn scatter(
-        &self,
-        ray: Ray,
-        record: &local_info::Full,
-        _rng: &mut rand::rngs::StdRng,
-    ) -> Scattered {
+    fn scatter(&self, ray: Ray, record: &local_info::Full, _rng: &mut Rng) -> Scattered {
         let light_dir = self.light_dir.normalize();
         let gooch_factor = (1. + record.normal.dot(light_dir)) / 2.;
         let alpha = 0.4;

@@ -18,12 +18,7 @@ pub struct Metal {
 }
 
 impl Material for Metal {
-    fn scatter(
-        &self,
-        ray: Ray,
-        record: &local_info::Full,
-        rng: &mut rand::rngs::StdRng,
-    ) -> Scattered {
+    fn scatter(&self, ray: Ray, record: &local_info::Full, rng: &mut crate::Rng) -> Scattered {
         let ray_direction = ray.direction.reflect(record.normal);
         let fuziness = self.roughness
             * Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));

@@ -19,12 +19,7 @@ use glam::Vec3;
 use crate::{color::Rgb, math::point::Point, ray::Ray, shape::local_info};
 
 pub trait Material: Sync + Send {
-    fn scatter(
-        &self,
-        ray: Ray,
-        record: &local_info::Full,
-        rng: &mut rand::rngs::StdRng,
-    ) -> Scattered;
+    fn scatter(&self, ray: Ray, record: &local_info::Full, rng: &mut crate::Rng) -> Scattered;
 
     fn transmission(&self) -> Option<(f32, Vec3)> {
         None

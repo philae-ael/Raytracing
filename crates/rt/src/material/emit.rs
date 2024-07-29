@@ -1,4 +1,4 @@
-use crate::{math::vec::RgbAsVec3Ext, ray::Ray, shape::local_info};
+use crate::{math::vec::RgbAsVec3Ext, ray::Ray, shape::local_info, Rng};
 
 use super::{texture::Texture, Material, Scattered};
 
@@ -7,12 +7,7 @@ pub struct Emit {
 }
 
 impl Material for Emit {
-    fn scatter(
-        &self,
-        _ray: Ray,
-        record: &local_info::Full,
-        _rng: &mut rand::rngs::StdRng,
-    ) -> Scattered {
+    fn scatter(&self, _ray: Ray, record: &local_info::Full, _rng: &mut Rng) -> Scattered {
         Scattered {
             ray_out: None,
             albedo: self.texture.color(record.uv),

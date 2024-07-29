@@ -12,17 +12,20 @@ pub struct Ray {
 }
 
 impl Ray {
+    /// Direction should be normalized
     pub fn new(origin: Point, direction: Vec3) -> Self {
         Self {
             origin,
-            direction: direction.normalize(),
+            direction,
             bounds: (0.0, f32::INFINITY),
         }
     }
+
+    /// Direction should be normalized
     pub fn new_with_range(origin: Point, direction: Vec3, range: Range<f32>) -> Self {
         Self {
             origin,
-            direction: direction.normalize(),
+            direction,
             bounds: (range.start, range.end),
         }
     }

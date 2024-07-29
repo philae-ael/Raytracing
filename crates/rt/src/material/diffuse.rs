@@ -8,6 +8,7 @@ use crate::{
     },
     ray::Ray,
     shape::local_info,
+    Rng,
 };
 
 use super::{texture::Texture, Material, Scattered};
@@ -17,12 +18,7 @@ pub struct Diffuse {
 }
 
 impl Material for Diffuse {
-    fn scatter(
-        &self,
-        ray: Ray,
-        record: &local_info::Full,
-        rng: &mut rand::rngs::StdRng,
-    ) -> Scattered {
+    fn scatter(&self, ray: Ray, record: &local_info::Full, rng: &mut Rng) -> Scattered {
         let bounce_noise =
             Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
         let bounce_normal = -record.normal.same_direction(ray.direction);
@@ -31,7 +27,7 @@ impl Material for Diffuse {
             .unwrap_or(bounce_normal);
 
         Scattered {
-            ray_out: Some(Ray::new(record.pos, bounce_direction)),
+            ray_out: Some(Ray::new(record.pos, bounce_direction.normalize())),
             albedo: self.texture.color(record.uv),
         }
     }

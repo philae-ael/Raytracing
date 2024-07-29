@@ -1,3 +1,4 @@
+use crate::Rng;
 use glam::Vec3;
 use rand::{distributions, prelude::Distribution};
 
@@ -15,12 +16,7 @@ pub struct Dielectric {
 }
 
 impl Material for Dielectric {
-    fn scatter(
-        &self,
-        ray: Ray,
-        record: &local_info::Full,
-        rng: &mut rand::rngs::StdRng,
-    ) -> Scattered {
+    fn scatter(&self, ray: Ray, record: &local_info::Full, rng: &mut Rng) -> Scattered {
         let sampler = distributions::Uniform::new_inclusive(0.0, 1.0);
         let cos_incident = record.normal.dot(ray.direction);
         // IOR is the ratio n1/n2 where n2 is the indice of refraction of the material and n1 the indice of refraction of the medium

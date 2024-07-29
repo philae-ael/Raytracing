@@ -4,7 +4,7 @@ use crate::{
     ray::Ray,
     renderer::RayResult,
     shape::IntersectionResult,
-    timed_scope_accumulate, Ctx,
+    Ctx,
 };
 
 use super::Integrator;
@@ -20,11 +20,9 @@ impl Integrator for BasicIntegrator {
         }
 
         // Prevent auto intersection
-        let ray = Ray::new_with_range(ray.origin, ray.direction, 0.01..ray.bounds.1);
+        let ray = Ray::new_with_range(ray.origin, ray.direction, 0.00001..ray.bounds.1);
 
-        let isect = timed_scope_accumulate!("Intersection", || {
-            ctx.world.objects.intersection_full(ray)
-        });
+        let isect = ctx.world.objects.intersection_full(ray);
         let IntersectionResult::Intersection(record) = isect else {
             return self.sky_ray(ctx, ray);
         };

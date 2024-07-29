@@ -1,7 +1,7 @@
 use glam::Vec3;
 use rand::distributions::{self, Distribution};
 
-use crate::{ray::Ray, shape::local_info};
+use crate::{ray::Ray, shape::local_info, Rng};
 
 use super::{Material, Scattered};
 
@@ -12,12 +12,7 @@ pub struct MixMaterial<Mat1: Material, Mat2: Material> {
 }
 
 impl<Mat1: Material, Mat2: Material> Material for MixMaterial<Mat1, Mat2> {
-    fn scatter(
-        &self,
-        ray: Ray,
-        record: &local_info::Full,
-        rng: &mut rand::rngs::StdRng,
-    ) -> Scattered {
+    fn scatter(&self, ray: Ray, record: &local_info::Full, rng: &mut Rng) -> Scattered {
         let dist = distributions::Uniform::new_inclusive(0.0, 1.0);
         let sample = dist.sample(rng);
 

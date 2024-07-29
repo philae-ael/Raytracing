@@ -92,9 +92,15 @@ impl Executor {
 
         let mut output_buffers = OutputBuffers::new(self.dimension);
         let (tx, rx) = channel();
-        let (mut ctx_, progress) = self.build_ctx(|msg| {
-            tx.send(Message::Tile(msg)).unwrap();
-        });
+        let x = 0..self.dimension.width;
+        let y = 0..self.dimension.height;
+        let (mut ctx_, progress) = self.build_ctx(
+            |msg| {
+                tx.send(Message::Tile(msg)).unwrap();
+            },
+            x,
+            y,
+        );
         let ctx = &mut ctx_;
         let generation_result = rayon::scope(|s: &Scope<'_>| {
             log::info!("Generating image...");
@@ -154,24 +160,56 @@ impl Executor {
         log::debug!("Monothreaded");
 
         let mut output_buffers = OutputBuffers::new(self.dimension);
-        let (mut dispatcher, progress) = self.build_ctx(on_tile_rendered);
+        let x = 0..self.dimension.width;
+        let y = 0..self.dimension.height;
+        let (mut dispatcher, progress) = self.build_ctx(on_tile_rendered, x, y);
 
         log::info!("Generating image...");
 
         for samples in SampleCounter::new(32, dispatcher.executor.samples_per_pixel) {
             dispatcher.dispatch_sync(world, samples, &mut output_buffers, &progress);
         }
-        print!("\r{progress}\n");
+        println!();
 
         log::info!("Image fully generated");
 
         Ok(output_buffers)
     }
 
-    fn build_ctx<F>(self, on_tile_rendered: F) -> (Dispatcher<F>, progress::Progress) {
+    pub fn run_pixels<F: FnMut(TileMsg)>(
+        self,
+        world: &World,
+        on_tile_rendered: F,
+        x: Range<u32>,
+        y: Range<u32>,
+        samples: Range<u32>,
+    ) -> anyhow::Result<OutputBuffers> {
+        log::debug!("Pixel");
+
+        let mut output_buffers = OutputBuffers::new(self.dimension);
+        let (mut dispatcher, progress) = self.build_ctx(on_tile_rendered, x, y);
+
+        log::info!("Generating image...");
+
+        dispatcher.dispatch_sync(world, samples, &mut output_buffers, &progress);
+        println!();
+
+        log::info!("Image fully generated");
+
+        Ok(output_buffers)
+    }
+
+    fn build_ctx<F>(
+        self,
+        on_tile_rendered: F,
+        x: Range<u32>,
+        y: Range<u32>,
+    ) -> (Dispatcher<F>, progress::Progress) {
         let tiler = Tiler {
-            width: self.dimension.width,
-            height: self.dimension.height,
+            offset_x: x.start,
+            offset_y: y.start,
+            width: x.len() as _,
+            height: y.len() as _,
             x_grainsize: self.tile_size,
             y_grainsize: self.tile_size,
         };

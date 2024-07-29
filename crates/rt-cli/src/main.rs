@@ -11,7 +11,7 @@ mod utils;
 use anyhow::Result;
 use clap::Parser;
 use progress::PercentBar;
-use renderer::{ExecutionMode, Renderer};
+use renderer::{ExecutionMode, RenderRange, Renderer};
 use rt::aggregate::embree::EmbreeScene;
 use utils::{AvailableIntegrator, AvailableOutput, AvailableScene, Dimensions, Spp};
 
@@ -19,8 +19,10 @@ use utils::{AvailableIntegrator, AvailableOutput, AvailableScene, Dimensions, Sp
 pub struct Args {
     tev_path: Option<String>,
     #[arg(long = "spp", default_value = "1")]
-    /// Samples per pixels
-    sample_per_pixel: Spp,
+    /// Samples per pixel. To render a pixel using 5 samples use "5" to render a pixel with samples
+    /// 7..84 use "7..84" to render a pixel with as much sample as possible (it will render until
+    ///   interuption) use "inf"
+    samples: Spp,
 
     #[arg(long, value_enum, default_value_t)]
     /// Scene selector
@@ -43,15 +45,20 @@ pub struct Args {
     #[arg(long)]
     allowed_error: Option<f32>,
 
-    #[arg(long)]
-    tile_size: Option<u32>,
+    #[arg(long, default_value_t = 32)]
+    tile_size: u32,
 
-    #[arg(short, long, default_value = "multithreaded")]
-    /// Execution mode can be monothreaded, multithreaded or a simple pixel `x`x`y`x`sample` eg
-    /// 1x2x4 for the pixel 1 2 at sample 4
+    #[arg(short, long, value_enum)]
     execution_mode: ExecutionMode,
 
+    #[arg(short, long)]
+    /// The range to render. To render pixel (1,4) use "1x4",to render range (1,4)..(7,45) use
+    /// "1..7x4..45".
+    range: Option<RenderRange>,
+
     #[arg(long, default_value_t)]
+    /// Seed to use for all the random stuff.
+    /// Given a seed, the rendering is deterministic (the output only depends on x, y, sample and seed).
     seed: u64,
 }
 

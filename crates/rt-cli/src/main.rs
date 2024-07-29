@@ -11,7 +11,7 @@ mod utils;
 use anyhow::Result;
 use clap::Parser;
 use progress::PercentBar;
-use renderer::Renderer;
+use renderer::{ExecutionMode, Renderer};
 use rt::aggregate::embree::EmbreeScene;
 use utils::{AvailableIntegrator, AvailableOutput, AvailableScene, Dimensions, Spp};
 
@@ -46,8 +46,10 @@ pub struct Args {
     #[arg(long)]
     tile_size: Option<u32>,
 
-    #[arg(long, default_value_t = false)]
-    disable_threading: bool,
+    #[arg(short, long, default_value = "multithreaded")]
+    /// Execution mode can be monothreaded, multithreaded or a simple pixel `x`x`y`x`sample` eg
+    /// 1x2x4 for the pixel 1 2 at sample 4
+    execution_mode: ExecutionMode,
 
     #[arg(long, default_value_t)]
     seed: u64,

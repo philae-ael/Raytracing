@@ -54,6 +54,8 @@ impl IntoIterator for Tile {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Tiler {
+    pub offset_x: u32,
+    pub offset_y: u32,
     pub width: u32,
     pub height: u32,
     pub x_grainsize: u32,
@@ -87,10 +89,10 @@ impl Tiler {
         let y = idx as u32 / col_count as u32;
 
         Some(Tile {
-            x_start: x * self.x_grainsize,
-            x_end: u32::min(self.width, (x + 1) * self.x_grainsize),
-            y_start: y * self.y_grainsize,
-            y_end: u32::min(self.height, (y + 1) * self.y_grainsize),
+            x_start: self.offset_x + x * self.x_grainsize,
+            x_end: self.offset_x + u32::min(self.width, (x + 1) * self.x_grainsize),
+            y_start: self.offset_y + y * self.y_grainsize,
+            y_end: self.offset_y + u32::min(self.height, (y + 1) * self.y_grainsize),
         })
     }
 }

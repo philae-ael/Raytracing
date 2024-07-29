@@ -1,5 +1,5 @@
 use core::fmt::Display;
-use std::str::FromStr;
+use std::{ops::Range, str::FromStr};
 
 use clap::ValueEnum;
 use rt::{
@@ -10,9 +10,9 @@ use rt::{
     },
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Spp {
-    Spp(u32),
+    Spp(Range<u32>),
     Inf,
 }
 
@@ -23,7 +23,11 @@ impl FromStr for Spp {
         if s.eq_ignore_ascii_case("inf") {
             Ok(Spp::Inf)
         } else {
-            Ok(Spp::Spp(s.parse()?))
+            let r = match s.split_once("..") {
+                Some((a, b)) => a.parse()?..b.parse()?,
+                None => 0..s.parse()?,
+            };
+            Ok(Spp::Spp(r))
         }
     }
 }

@@ -1,6 +1,7 @@
 use std::{collections::HashSet, ops::Range};
 
 use anyhow::Result;
+use clap::ValueEnum;
 use rt::{
     camera::Camera,
     math::{point::Point, quaternion::LookAt, vec::Vec3},
@@ -29,49 +30,42 @@ pub trait FinalOutput: Send {
     fn commit(&self, output_buffers: &OutputBuffers) -> Result<()>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ValueEnum, Copy)]
 pub enum ExecutionMode {
     Multithreaded,
     Monothreaded,
-    PixelRange {
-        x: Range<u32>,
-        y: Range<u32>,
-        sample: Range<u32>,
-    },
 }
-impl std::str::FromStr for ExecutionMode {
+
+#[derive(Debug, Clone)]
+pub struct RenderRange {
+    pub x: Range<u32>,
+    pub y: Range<u32>,
+}
+
+impl std::str::FromStr for RenderRange {
     type Err = &'static str;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let err = Err("expected monothreaded, multithreaded or a simple pixel `x`x`y`x`sample` eg 1x2x4 for the pixel 1 2 at sample 4");
-        match s.to_lowercase().as_str() {
-            "multithreaded" => Ok(Self::Multithreaded),
-            "monothreaded" => Ok(Self::Monothreaded),
-            s => {
-                let mut it = s.split('x').flat_map(|x| {
-                    let Some(x) = x.split_once("..") else {
-                        return x.parse::<u32>().ok().map(|x| x..(x + 1));
-                    };
+        let mut it = s.split('x').flat_map(|x| {
+            let Some(x) = x.split_once("..") else {
+                return x.parse::<u32>().ok().map(|x| x..(x + 1));
+            };
 
-                    Some(x.0.parse().ok()?..x.1.parse().ok()?)
-                });
+            Some(x.0.parse().ok()?..x.1.parse().ok()?)
+        });
 
-                let Some(x) = it.next() else {
-                    return err;
-                };
-                let Some(y) = it.next() else {
-                    return err;
-                };
-                let Some(sample) = it.next() else {
-                    return err;
-                };
-                let None = it.next() else {
-                    return err;
-                };
+        let Some(x) = it.next() else {
+            return err;
+        };
+        let Some(y) = it.next() else {
+            return err;
+        };
+        let None = it.next() else {
+            return err;
+        };
 
-                Ok(ExecutionMode::PixelRange { x, y, sample })
-            }
-        }
+        Ok(RenderRange { x, y })
     }
 }
 
@@ -80,6 +74,8 @@ pub struct Renderer {
     pub final_outputs: Vec<Box<dyn FinalOutput>>,
     pub executor: Executor,
     pub execution_mode: ExecutionMode,
+    pub pixel_range: RenderRange,
+    samples: crate::utils::Spp,
 }
 
 impl Renderer {
@@ -108,8 +104,7 @@ impl Renderer {
 
             Executor {
                 dimension: args.dimensions,
-                samples_per_pixel: args.sample_per_pixel,
-                tile_size: args.tile_size.unwrap_or(32),
+                tile_size: args.tile_size,
                 allowed_error: args.allowed_error,
                 integrator,
                 camera,
@@ -122,6 +117,11 @@ impl Renderer {
             final_outputs: Vec::new(),
             executor,
             execution_mode: args.execution_mode,
+            samples: args.samples,
+            pixel_range: args.range.unwrap_or(RenderRange {
+                x: 0..args.dimensions.width,
+                y: 0..args.dimensions.height,
+            }),
         };
 
         for o in outputs {
@@ -161,14 +161,13 @@ impl Renderer {
             match self.execution_mode {
                 ExecutionMode::Multithreaded => {
                     log::info!("execution mode: multithreaded");
-                    self.executor.run_multithreaded(world, f)
+                    self.executor
+                        .run_multithreaded(world, f, self.pixel_range, self.samples)
                 }
                 ExecutionMode::Monothreaded => {
                     log::info!("execution mode: monothreaded");
-                    self.executor.run_monothreaded(world, f)
-                }
-                ExecutionMode::PixelRange { x, y, sample } => {
-                    self.executor.run_pixels(world, f, x, y, sample)
+                    self.executor
+                        .run_monothreaded(world, f, self.pixel_range, self.samples)
                 }
             }
         })

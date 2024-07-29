@@ -5,6 +5,7 @@ use crate::{
     math::vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3AsRgbExt},
     ray::Ray,
     shape::local_info,
+    Rng,
 };
 
 use super::{Material, Scattered};
@@ -17,12 +18,7 @@ pub struct Phong {
 }
 
 impl Material for Phong {
-    fn scatter(
-        &self,
-        ray: Ray,
-        record: &local_info::Full,
-        _rng: &mut rand::rngs::StdRng,
-    ) -> Scattered {
+    fn scatter(&self, ray: Ray, record: &local_info::Full, _rng: &mut Rng) -> Scattered {
         let light_dir = self.light_dir.normalize();
         let diffuse = record.normal.dot(light_dir) * self.albedo.vec();
         let omega = -light_dir.reflect(record.normal).dot(ray.direction);

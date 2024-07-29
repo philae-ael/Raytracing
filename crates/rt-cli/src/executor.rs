@@ -14,7 +14,7 @@ use super::progress;
 
 use bytemuck::bytes_of;
 use image::{ImageBuffer, Rgb32FImage};
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use rayon::{
     iter::{
         IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
@@ -22,7 +22,7 @@ use rayon::{
     Scope,
 };
 use rt::{
-    camera::{Camera, PixelCoord, ViewportCoord},
+    camera::Camera,
     color::{ColorspaceConversion, Luma, Rgb},
     integrators::Integrator,
     renderer::{GenericRenderResult, PixelRenderResult, RayResult, RaySeries, World},
@@ -225,7 +225,7 @@ impl Executor {
         for (index, (x, y)) in tile.into_iter().enumerate() {
             for sample in samples.clone() {
                 let mut ctx = Ctx {
-                    rng: rand::rngs::StdRng::from_seed(
+                    rng: rt::Rng::from_seed(
                         Seed {
                             x,
                             y,
@@ -250,10 +250,7 @@ impl Executor {
     }
 
     fn pixel_worker(&self, ctx: &mut Ctx, x: u32, y: u32) -> RayResult {
-        let coords = PixelCoord::sample_around(ctx, x, y);
-        let vcoords = ViewportCoord::from_pixel_coord(&self.camera, coords);
-        let camera_ray = self.camera.ray(ctx, vcoords);
-
+        let camera_ray = self.camera.ray(ctx, x, y);
         self.integrator.ray_cast(ctx, camera_ray, 0)
     }
 }
@@ -326,12 +323,16 @@ struct Seed {
 }
 
 impl Seed {
-    pub fn as_seed(&self) -> <rand::rngs::StdRng as rand::SeedableRng>::Seed {
-        let mut seed: <rand::rngs::StdRng as rand::SeedableRng>::Seed = Default::default();
+    pub fn as_seed(&self) -> <rt::Rng as rand::SeedableRng>::Seed {
+        let mut seed: <rt::Rng as rand::SeedableRng>::Seed = Default::default();
 
         seed[0..std::mem::size_of::<Self>()].copy_from_slice(bytes_of(self));
 
-        seed
+        // We need that, the raw seed generate ATROCIOUS results
+        // Probably because of the 0s at the end
+        let mut rng = rt::Rng::from_seed(seed);
+
+        rng.gen()
     }
 }
 

@@ -18,7 +18,7 @@ use utils::{AvailableIntegrator, AvailableOutput, AvailableScene, Dimensions, Sp
 #[derive(Parser, Debug)]
 pub struct Args {
     tev_path: Option<String>,
-    #[arg(long = "spp", default_value = "1")]
+    #[arg(long = "spp", default_value = "32")]
     /// Samples per pixel. To render a pixel using 5 samples use "5" to render a pixel with samples
     /// 7..84 use "7..84" to render a pixel with as much sample as possible (it will render until
     ///   interuption) use "inf"
@@ -48,7 +48,7 @@ pub struct Args {
     #[arg(long, default_value_t = 32)]
     tile_size: u32,
 
-    #[arg(short, long, value_enum)]
+    #[arg(short, long, value_enum, default_value_t=ExecutionMode::Multithreaded)]
     execution_mode: ExecutionMode,
 
     #[arg(short, long)]

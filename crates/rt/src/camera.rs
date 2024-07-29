@@ -20,12 +20,11 @@ pub struct Camera {
     /// height of the sensor, in pixel
     pub height: u32,
 
-    /// width of the sensor, in world unit
-    pub viewport_height: f32,
-    /// width of the sensor, in world unit
-    pub viewport_width: f32,
+    /// half of the height of the sensor, in world unit
+    pub viewport_half_height: f32,
+    /// half of the width of the sensor, in world unit
+    pub viewport_half_width: f32,
 
-    //
     pub center_of_lens: Point,
 
     // should use scene transformation and assume camera is always facing the +Z direction
@@ -38,21 +37,20 @@ impl Camera {
         height: u32,
         vfov: f32,
         focal_length: f32,
-        center_of_length: Point,
+        center_of_lens: Point,
         rotation: Quat,
         aperture: f32,
     ) -> Self {
-        let theta = vfov;
-        let h = f32::tan(theta / 2.);
+        let half_height_factor = f32::tan(vfov / 2.);
 
         let aspect_ratio = width as f32 / height as f32;
         Self {
             width,
             height,
-            viewport_height: focal_length * h, // From center to top
-            viewport_width: focal_length * h * aspect_ratio, // From center to left
+            viewport_half_height: focal_length * half_height_factor, // From center to top
+            viewport_half_width: focal_length * half_height_factor * aspect_ratio, // From center to left
             focal_length,
-            center_of_lens: center_of_length,
+            center_of_lens,
             rotation,
             aperture,
         }
@@ -60,14 +58,16 @@ impl Camera {
 
     /// Generate a ray outgoing from the given [ViewportCoord]
     ///
-    /// Simulate aperture and focal length stochastically
-    pub fn ray(&self, ctx: &mut Ctx, coords: ViewportCoord) -> Ray {
+    /// Simulate aperture, focal length and size of sensor's pixels the  stochastically
+    pub fn ray(&self, ctx: &mut Ctx, x: u32, y: u32) -> Ray {
+        let coords = PixelCoord::sample_at_pixel(ctx, x, y);
+        let vcoords = ViewportCoord::from_pixel_coord(self, coords);
         let center_of_sensor = self.center_of_lens + self.focal_length * Vec3::Z;
 
         // from the sensor
         let ray_origin = center_of_sensor
-            + coords.vx * self.viewport_width * Vec3::X
-            + coords.vy * self.viewport_height * Vec3::Y;
+            + vcoords.vx * self.viewport_half_width * Vec3::X
+            + vcoords.vy * self.viewport_half_height * Vec3::Y;
 
         // to the lens
         let [dx, dy] = UnitBall2.sample(&mut ctx.rng);
@@ -81,7 +81,7 @@ impl Camera {
 
         Ray::new(
             self.center_of_lens,
-            self.rotation.mul_vec3(ray_dst - ray_origin),
+            self.rotation.mul_vec3(ray_dst - ray_origin).normalize(),
         )
     }
 }
@@ -102,7 +102,7 @@ impl PixelCoord {
     ///
     /// Given a pixel coordinate (x, y), the sample is taken uniformely in
     /// $\left[x, x+1\right[ \times \left[y, x+1\right[$
-    pub fn sample_around(ctx: &mut Ctx, x: u32, y: u32) -> PixelCoord {
+    pub fn sample_at_pixel(ctx: &mut Ctx, x: u32, y: u32) -> PixelCoord {
         let uniform = Uniform::new(0., 1.);
         let dx = uniform.sample(&mut ctx.rng);
         let dy = uniform.sample(&mut ctx.rng);
@@ -126,10 +126,10 @@ pub struct ViewportCoord {
 
 impl ViewportCoord {
     // Convert a coordinate in pixel space into viewport space
-    pub fn from_pixel_coord(camera: &Camera, coord: PixelCoord) -> Self {
+    pub fn from_pixel_coord(camera: &Camera, coords: PixelCoord) -> Self {
         Self {
-            vx: 2. * (coord.x / (camera.width - 1) as f32) - 1.,
-            vy: 2. * (coord.y / (camera.height - 1) as f32) - 1.,
+            vx: 2. * (coords.x / camera.width as f32) - 1.,
+            vy: 2. * (coords.y / camera.height as f32) - 1.,
         }
     }
 }

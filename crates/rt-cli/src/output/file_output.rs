@@ -29,6 +29,9 @@ impl FinalOutput for FileOutput {
             for buff in output_buffers.as_ref().into_iter() {
                 match buff {
                     rt::renderer::Channel::Color(color) => color.save(hdr_path.join("color.exr")),
+                    rt::renderer::Channel::Variance(variance) => {
+                        convert_luma(variance).save(hdr_path.join("variance.exr"))
+                    }
                     rt::renderer::Channel::Position(position) => {
                         position.save(hdr_path.join("position.exr"))
                     }
@@ -56,6 +59,9 @@ impl FinalOutput for FileOutput {
                 match buff {
                     rt::renderer::Channel::Color(color) => {
                         convert_rgb(color).save(ldr_path.join("color.jpg"))
+                    }
+                    rt::renderer::Channel::Variance(variance) => {
+                        convert_luma(variance).save(ldr_path.join("variance.jpg"))
                     }
                     rt::renderer::Channel::Normal(normal) => {
                         convert_rgb(normal).save(ldr_path.join("normal.jpg"))

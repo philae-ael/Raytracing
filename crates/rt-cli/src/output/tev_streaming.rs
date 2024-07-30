@@ -6,12 +6,13 @@ use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
 use crate::{executor::TileMsg, renderer::StreamingOutput, Dimensions};
 
-const CHANNEL_COUNT: usize = 14;
+const CHANNEL_COUNT: usize = 15;
 fn channel_names() -> [&'static str; CHANNEL_COUNT] {
     [
         "R",
         "G",
         "B", // color
+        "Variance",
         "normal.X",
         "normal.Y",
         "normal.Z", // normal

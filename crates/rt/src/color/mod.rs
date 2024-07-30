@@ -5,11 +5,13 @@ use colorspace::Colorspace;
 
 pub mod colorspace;
 
-#[repr(C, packed)]
-#[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Zeroable)]
 pub struct Color<S>(pub [f32; 3], PhantomData<S>)
 where
     S: colorspace::Colorspace;
+
+unsafe impl<S: colorspace::Colorspace> bytemuck::Pod for Color<S> {}
 
 #[allow(non_camel_case_types)]
 pub type sRgb = Color<colorspace::sRGB>;

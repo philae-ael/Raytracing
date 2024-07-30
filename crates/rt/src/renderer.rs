@@ -21,6 +21,7 @@ pub struct RayResult {
     pub samples_accumulated: u32,
 }
 
+#[derive(Clone)]
 pub struct RaySeries {
     pub normal: Vec3,
     pub position: Point,
@@ -49,6 +50,7 @@ impl RaySeries {
             position: (inv_samples * position.vec()).rgb(),
             albedo: (inv_samples * albedo.vec()).rgb(),
             color: color.mean(),
+            variance: color.variance(),
             z: color::Luma(inv_samples * z),
             ray_depth: color::Luma(inv_samples * ray_depth),
         }
@@ -116,17 +118,19 @@ impl Default for RaySeries {
 
 pub enum Channel<RgbStorage, LumaStorage> {
     Color(RgbStorage),
+    Variance(LumaStorage),
     Normal(RgbStorage),
     Position(RgbStorage),
     Albedo(RgbStorage),
     Z(LumaStorage),
     RayDepth(LumaStorage),
 }
-const CHANNEL_COUNT: usize = 6;
+const CHANNEL_COUNT: usize = 7;
 
 #[repr(C)]
 pub struct GenericRenderResult<RgbStorage, LumaStorage> {
     pub color: RgbStorage,
+    pub variance: LumaStorage,
     pub normal: RgbStorage,
     pub position: RgbStorage,
     pub albedo: RgbStorage,
@@ -138,6 +142,7 @@ impl<RgbStorage, LumaStorage> GenericRenderResult<RgbStorage, LumaStorage> {
     pub fn as_ref(&self) -> GenericRenderResult<&RgbStorage, &LumaStorage> {
         GenericRenderResult {
             color: &self.color,
+            variance: &self.variance,
             normal: &self.normal,
             position: &self.position,
             albedo: &self.albedo,
@@ -152,6 +157,7 @@ impl<T: Clone, L: Clone> Clone for GenericRenderResult<T, L> {
     fn clone(&self) -> Self {
         Self {
             color: self.color.clone(),
+            variance: self.variance.clone(),
             position: self.position.clone(),
             normal: self.normal.clone(),
             albedo: self.albedo.clone(),
@@ -171,6 +177,7 @@ impl<RgbStorage, LumaStorage> IntoIterator for GenericRenderResult<RgbStorage, L
     fn into_iter(self) -> Self::IntoIter {
         [
             Channel::Color(self.color),
+            Channel::Variance(self.variance),
             Channel::Albedo(self.albedo),
             Channel::Position(self.position),
             Channel::Normal(self.normal),

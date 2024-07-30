@@ -25,6 +25,7 @@ use rt::{
     camera::Camera,
     color::{ColorspaceConversion, Luma, Rgb},
     integrators::Integrator,
+    memory::{Arena, ArenaInner},
     renderer::{GenericRenderResult, PixelRenderResult, RayResult, RaySeries, World},
     utils::counter::counter,
     Ctx,
@@ -53,6 +54,8 @@ pub struct Executor {
     pub seed: u64,
 }
 
+const SCRATCH_MEMORY_SIZE: usize = 1024 * 1024; // 1 MB
+
 type Luma32FImage = image::ImageBuffer<image::Luma<f32>, Vec<f32>>;
 pub type OutputBuffers = GenericRenderResult<Rgb32FImage, Luma32FImage>;
 
@@ -63,6 +66,7 @@ trait OutputBuffersExt<T, L> {
 impl OutputBuffersExt<Rgb, Luma> for OutputBuffers {
     fn convert(&mut self, d: PixelRenderResult, x: u32, y: u32) {
         *self.color.get_pixel_mut(x, y) = d.color.convert().into();
+        *self.variance.get_pixel_mut(x, y) = d.variance.into();
         *self.normal.get_pixel_mut(x, y) = d.normal.convert().into();
         *self.albedo.get_pixel_mut(x, y) = d.albedo.convert().into();
         *self.position.get_pixel_mut(x, y) = d.position.convert().into();
@@ -73,6 +77,7 @@ impl OutputBuffersExt<Rgb, Luma> for OutputBuffers {
     fn new(Dimensions { width, height }: Dimensions) -> Self {
         Self {
             color: ImageBuffer::new(width, height),
+            variance: Luma32FImage::new(width, height),
             normal: ImageBuffer::new(width, height),
             position: ImageBuffer::new(width, height),
             albedo: ImageBuffer::new(width, height),
@@ -178,8 +183,10 @@ impl Executor {
 
         log::info!("Generating image...");
 
+        let mut arena = ArenaInner::new(SCRATCH_MEMORY_SIZE);
+
         for samples in SampleCounter::new(32, samples) {
-            dispatcher.dispatch_sync(world, samples, &mut output_buffers, &progress);
+            dispatcher.dispatch_sync(world, &mut arena, samples, &mut output_buffers, &progress);
         }
         println!();
 
@@ -218,11 +225,19 @@ impl Executor {
         }
     }
 
-    fn tile_worker(&self, world: &World, tile: Tile, data: &mut [RaySeries], samples: &Range<u32>) {
+    fn tile_worker(
+        &self,
+        world: &World,
+        arena: &mut ArenaInner,
+        tile: Tile,
+        data: &mut [RaySeries],
+        samples: &Range<u32>,
+    ) {
         assert_eq!(data.len(), tile.len());
 
         log::trace!("working on tile {tile:?}");
         for (index, (x, y)) in tile.into_iter().enumerate() {
+            arena.reuse();
             for sample in samples.clone() {
                 let mut ctx = Ctx {
                     rng: rt::Rng::from_seed(
@@ -235,6 +250,7 @@ impl Executor {
                         .as_seed(),
                     ),
                     world,
+                    arena: Arena::new(arena),
                 };
 
                 data[index].add_sample(self.pixel_worker(&mut ctx, x, y));
@@ -266,12 +282,14 @@ impl<F: FnMut(TileMsg)> Dispatcher<F> {
     fn dispatch_sync(
         &mut self,
         world: &World,
+        arena: &mut ArenaInner,
         samples: Range<u32>,
         output_buffers: &mut OutputBuffers,
         progress: &progress::Progress,
     ) {
         for (tile, data) in self.tiler.into_iter().zip(self.tiles_data.iter_mut()) {
-            self.executor.tile_worker(world, tile, data, &samples);
+            self.executor
+                .tile_worker(world, arena, tile, data, &samples);
 
             progress.add(samples.len() as _);
             progress.print();
@@ -300,15 +318,19 @@ impl<F: Fn(TileMsg) + Sync> Dispatcher<F> {
         self.tiler
             .into_par_iter()
             .zip(self.tiles_data.par_iter_mut())
-            .map(|(tile, data)| {
-                self.executor.tile_worker(world, tile, data, &samples);
-                progress.add(samples.len() as _);
+            .map_init(
+                || ArenaInner::new(SCRATCH_MEMORY_SIZE),
+                |arena, (tile, data)| {
+                    self.executor
+                        .tile_worker(world, arena, tile, data, &samples);
+                    progress.add(samples.len() as _);
 
-                TileMsg {
-                    tile,
-                    data: data.iter().map(|x| x.as_pixelresult()).collect::<Vec<_>>(),
-                }
-            })
+                    TileMsg {
+                        tile,
+                        data: data.iter().map(|x| x.as_pixelresult()).collect::<Vec<_>>(),
+                    }
+                },
+            )
             .for_each(&self.on_tile_rendered)
     }
 }

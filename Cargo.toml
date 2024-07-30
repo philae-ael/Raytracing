@@ -12,5 +12,5 @@ embree4-sys = "0.0.10"
 anyhow = "1"
 glam = { version = "0.28", features = ["bytemuck"] }
 
-[workspace.package.metadata.docs.rs]
+[workspace.metadata.docs.rs]
 rustdoc-args = ["--html-in-header", "./doc_head.html"]

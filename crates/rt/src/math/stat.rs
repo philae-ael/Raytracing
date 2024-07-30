@@ -1,8 +1,10 @@
-use crate::color::Rgb;
+use core::f32;
+
+use crate::color::{Luma, Rgb};
 
 /// Represent a serie of samples from a given discribution.
 /// It is used to get an easy access to mean, variance and
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct SampleSeries {
     count: usize,
     sum: f32,
@@ -35,24 +37,24 @@ impl SampleSeries {
     }
 
     pub fn variance(&self) -> f32 {
-        let mean = self.mean();
-        let sqmean = self.sqsum / self.count as f32;
+        if self.count <= 2 {
+            return f32::INFINITY;
+        }
 
-        sqmean - mean * mean
+        // This estimator is unbiased thx to the n - 1
+        (self.sqsum - self.sum * self.sum / self.count as f32) / (self.count as f32 - 1.0)
     }
 
-    /// returns the estimated error supposing that the distribution follows a standard distribution,
-    /// with a confidence of 95%
-    /// If there is not enough samples, return None
+    /// Returns the error $\varepsilon$ such that the real value is between $\left[\varepsilon-m, \varepsilon+m\right]$ with 95% confidence
+    ///
+    /// This assume the distibution follows a normal law. This is clearly false.
     pub fn error_with_95_confidence(&self) -> Option<f32> {
-        let n = self.count;
-
-        if n < 15 {
+        let df = self.count - 1;
+        if df < 15 {
             return None;
-        };
+        }
 
-        let c = 2.13; // from https://www.accessengineeringlibrary.com/content/book/9780071795579/back-matter/appendix4 for n=15, t.975 (0.025*2 = 0.05)
-        Some(c * (self.variance() / n as f32).sqrt())
+        Some(STUDENT_5[df.min(30) - 15] * self.variance().sqrt())
     }
 
     pub fn value(&self) -> f32 {
@@ -70,7 +72,23 @@ impl SampleSeries {
     }
 }
 
-#[derive(Default)]
+/// Some values of the student distribution
+///
+/// Start with degree of freedom = 15
+///
+/// Left and right values are the same as the student distribution is symetric,
+///
+/// Generated with
+/// ```python
+/// from scipy import stats
+/// [stats.t(df=i).interval(0.95)[0] for i in range(15, 31)]
+/// ```
+const STUDENT_5: [f32; 16] = [
+    2.131, 2.120, 2.110, 2.101, 2.093, 2.086, 2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052,
+    2.048, 2.045, 2.042,
+];
+
+#[derive(Default, Clone)]
 pub struct RgbSeries {
     r: SampleSeries,
     g: SampleSeries,
@@ -102,7 +120,14 @@ impl RgbSeries {
 
         Rgb::from_array([r, g, b])
     }
+    pub fn variance(&self) -> Luma {
+        let r = self.r.variance();
+        let g = self.g.variance();
+        let b = self.b.variance();
 
+        // Hum... can we do better than that?
+        Luma((r * r + g * g + b * b).sqrt())
+    }
     pub fn merge(lhs: Self, rhs: Self) -> Self {
         Self {
             r: SampleSeries::merge(lhs.r, rhs.r),

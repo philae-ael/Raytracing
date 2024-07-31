@@ -1,3 +1,8 @@
+use rt::{
+    math::vec::Vec2,
+    sampler::{Sampler, StratifiedSampler, UniformSampler},
+    Seed,
+};
 use std::{
     io::Write,
     ops::Range,
@@ -12,9 +17,7 @@ use crate::{
 
 use super::progress;
 
-use bytemuck::bytes_of;
 use image::{ImageBuffer, Rgb32FImage};
-use rand::{Rng, SeedableRng};
 use rayon::{
     iter::{
         IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
@@ -50,6 +53,7 @@ pub struct Executor {
     // TODO: make a pool of materials
     pub integrator: Box<dyn Integrator>,
     pub camera: Camera,
+    pub spp: u32,
 
     pub seed: u64,
 }
@@ -93,7 +97,7 @@ impl Executor {
         world: &World,
         mut on_tile_rendered: F,
         pixel_range: RenderRange,
-        samples: Spp,
+        sample_range: Spp,
     ) -> anyhow::Result<OutputBuffers> {
         log::debug!("Monothreaded");
 
@@ -108,9 +112,8 @@ impl Executor {
         );
         let dispatcher = &mut dispatcher_;
 
-        let progress = match &samples {
+        let progress = match &sample_range {
             Spp::Spp(s) => progress::Progress::new(s.len() * dispatcher.tiler.tile_count()),
-            Spp::Inf => progress::Progress::new_inf(),
         };
         progress.print();
 
@@ -149,7 +152,7 @@ impl Executor {
                 let _ = std::io::stdout().flush();
             });
 
-            for samples in SampleCounter::new(32, samples) {
+            for samples in SampleCounter::new(32, sample_range) {
                 dispatcher.dispatch_async(world, samples, &progress);
             }
             tx.send(Message::Stop)
@@ -169,15 +172,14 @@ impl Executor {
         world: &World,
         on_tile_rendered: F,
         pixel_range: RenderRange,
-        samples: Spp,
+        samples_range: Spp,
     ) -> anyhow::Result<OutputBuffers> {
         log::debug!("Monothreaded");
 
         let mut output_buffers = OutputBuffers::new(self.dimension);
         let mut dispatcher = self.build_dispatcher(on_tile_rendered, pixel_range.x, pixel_range.y);
-        let progress = match &samples {
+        let progress = match &samples_range {
             Spp::Spp(s) => progress::Progress::new(s.len() * dispatcher.tiler.tile_count()),
-            Spp::Inf => progress::Progress::new_inf(),
         };
         progress.print();
 
@@ -185,7 +187,7 @@ impl Executor {
 
         let mut arena = ArenaInner::new(SCRATCH_MEMORY_SIZE);
 
-        for samples in SampleCounter::new(32, samples) {
+        for samples in SampleCounter::new(32, samples_range) {
             dispatcher.dispatch_sync(world, &mut arena, samples, &mut output_buffers, &progress);
         }
         println!();
@@ -236,24 +238,31 @@ impl Executor {
         assert_eq!(data.len(), tile.len());
 
         log::trace!("working on tile {tile:?}");
+        let sqr_sample = f32::sqrt(self.spp as f32).floor() as u32;
+
         for (index, (x, y)) in tile.into_iter().enumerate() {
-            arena.reuse();
+            // let mut sampler = StratifiedSampler::new(x, y, sqr_sample, sqr_sample);
+            let mut sampler = UniformSampler::new(x, y);
+
             for sample in samples.clone() {
+                arena.reuse();
+                sampler.with_sample(sample);
+
+                let seed = Seed {
+                    x,
+                    y,
+                    sample,
+                    seed: self.seed,
+                };
                 let mut ctx = Ctx {
-                    rng: rt::Rng::from_seed(
-                        Seed {
-                            x,
-                            y,
-                            sample,
-                            seed: self.seed,
-                        }
-                        .as_seed(),
-                    ),
+                    seed,
+                    sampler: &mut sampler,
                     world,
+                    rng: seed.into_rng(0),
                     arena: Arena::new(arena),
                 };
 
-                data[index].add_sample(self.pixel_worker(&mut ctx, x, y));
+                data[index].add_sample(self.pixel_worker(&mut ctx));
 
                 if let Some(allowed_error) = self.allowed_error {
                     if data[index].color.is_precise_enough(allowed_error).is_some() {
@@ -265,8 +274,13 @@ impl Executor {
         }
     }
 
-    fn pixel_worker(&self, ctx: &mut Ctx, x: u32, y: u32) -> RayResult {
-        let camera_ray = self.camera.ray(ctx, x, y);
+    fn pixel_worker(&self, ctx: &mut Ctx) -> RayResult {
+        let coords = Vec2 {
+            x: ctx.seed.x as f32,
+            y: ctx.seed.y as f32,
+        } + ctx.sampler.sample_2d();
+
+        let camera_ray = self.camera.ray(ctx, coords);
         self.integrator.ray_cast(ctx, camera_ray, 0)
     }
 }
@@ -335,29 +349,6 @@ impl<F: Fn(TileMsg) + Sync> Dispatcher<F> {
     }
 }
 
-#[derive(Debug, bytemuck::Pod, bytemuck::Zeroable, Copy, Clone)]
-#[repr(C, packed)]
-struct Seed {
-    seed: u64,
-    x: u32,
-    y: u32,
-    sample: u32,
-}
-
-impl Seed {
-    pub fn as_seed(&self) -> <rt::Rng as rand::SeedableRng>::Seed {
-        let mut seed: <rt::Rng as rand::SeedableRng>::Seed = Default::default();
-
-        seed[0..std::mem::size_of::<Self>()].copy_from_slice(bytes_of(self));
-
-        // We need that, the raw seed generate ATROCIOUS results
-        // Probably because of the 0s at the end
-        let mut rng = rt::Rng::from_seed(seed);
-
-        rng.gen()
-    }
-}
-
 struct SampleCounter {
     batch_size: u32,
     cur: u32,
@@ -390,7 +381,6 @@ impl Iterator for SampleCounter {
                 *r = (r.start + samples)..r.end;
                 samples
             }
-            Spp::Inf => self.batch_size,
         };
 
         let res = Some(self.cur..(self.cur + samples));

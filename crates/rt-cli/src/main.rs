@@ -22,7 +22,10 @@ pub struct Args {
     /// Samples per pixel. To render a pixel using 5 samples use "5" to render a pixel with samples
     /// 7..84 use "7..84" to render a pixel with as much sample as possible (it will render until
     ///   interuption) use "inf"
-    samples: Spp,
+    spp: u32,
+
+    #[arg(long)]
+    sample_range: Option<Spp>,
 
     #[arg(long, value_enum, default_value_t)]
     /// Scene selector

@@ -13,22 +13,17 @@ use rt::{
 #[derive(Debug, Clone)]
 pub enum Spp {
     Spp(Range<u32>),
-    Inf,
 }
 
 impl FromStr for Spp {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.eq_ignore_ascii_case("inf") {
-            Ok(Spp::Inf)
-        } else {
-            let r = match s.split_once("..") {
-                Some((a, b)) => a.parse()?..b.parse()?,
-                None => 0..s.parse()?,
-            };
-            Ok(Spp::Spp(r))
-        }
+        let r = match s.split_once("..") {
+            Some((a, b)) => a.parse()?..b.parse()?,
+            None => 0..s.parse()?,
+        };
+        Ok(Spp::Spp(r))
     }
 }
 

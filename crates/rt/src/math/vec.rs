@@ -1,3 +1,4 @@
+pub use glam::Vec2;
 pub use glam::Vec3;
 
 use crate::{color::Rgb, utils::log_once::warn_once};

@@ -75,7 +75,7 @@ pub struct Renderer {
     pub executor: Executor,
     pub execution_mode: ExecutionMode,
     pub pixel_range: RenderRange,
-    samples: crate::utils::Spp,
+    pub sample_range: crate::utils::Spp,
 }
 
 impl Renderer {
@@ -106,6 +106,7 @@ impl Renderer {
                 dimension: args.dimensions,
                 tile_size: args.tile_size,
                 allowed_error: args.allowed_error,
+                spp: args.spp,
                 integrator,
                 camera,
                 seed: args.seed,
@@ -117,7 +118,9 @@ impl Renderer {
             final_outputs: Vec::new(),
             executor,
             execution_mode: args.execution_mode,
-            samples: args.samples,
+            sample_range: args
+                .sample_range
+                .unwrap_or(crate::utils::Spp::Spp(0..args.spp)),
             pixel_range: args.range.unwrap_or(RenderRange {
                 x: 0..args.dimensions.width,
                 y: 0..args.dimensions.height,
@@ -162,12 +165,12 @@ impl Renderer {
                 ExecutionMode::Multithreaded => {
                     log::info!("execution mode: multithreaded");
                     self.executor
-                        .run_multithreaded(world, f, self.pixel_range, self.samples)
+                        .run_multithreaded(world, f, self.pixel_range, self.sample_range)
                 }
                 ExecutionMode::Monothreaded => {
                     log::info!("execution mode: monothreaded");
                     self.executor
-                        .run_monothreaded(world, f, self.pixel_range, self.samples)
+                        .run_monothreaded(world, f, self.pixel_range, self.sample_range)
                 }
             }
         })

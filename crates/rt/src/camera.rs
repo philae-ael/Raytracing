@@ -1,7 +1,8 @@
-use rand::{distributions::Uniform, prelude::Distribution};
+use glam::Vec2;
+use rand::prelude::Distribution;
 
 use crate::{
-    math::{distributions::*, point::Point, quaternion::Quat, vec::Vec3},
+    math::{distributions::UnitBall2, point::Point, quaternion::Quat, vec::Vec3},
     ray::Ray,
     Ctx,
 };
@@ -58,9 +59,8 @@ impl Camera {
 
     /// Generate a ray outgoing from the given [ViewportCoord]
     ///
-    /// Simulate aperture, focal length and size of sensor's pixels the  stochastically
-    pub fn ray(&self, ctx: &mut Ctx, x: u32, y: u32) -> Ray {
-        let coords = PixelCoord::sample_at_pixel(ctx, x, y);
+    /// Simulate aperture, focal length stochastically
+    pub fn ray(&self, ctx: &mut Ctx, coords: Vec2) -> Ray {
         let vcoords = ViewportCoord::from_pixel_coord(self, coords);
         let center_of_sensor = self.center_of_lens + self.focal_length * Vec3::Z;
 
@@ -86,33 +86,6 @@ impl Camera {
     }
 }
 
-/// Represent a coordinate in the pixel space.
-///
-/// The viewport is mapped to the range $\left[0, 1\right]$ for both `x` and `y`.
-///
-/// $\left\(0, 0\right)$ is the top left corner.
-#[derive(Debug, Clone, Copy)]
-pub struct PixelCoord {
-    pub x: f32,
-    pub y: f32,
-}
-
-impl PixelCoord {
-    /// Sample a point around the pixel located at `coords`
-    ///
-    /// Given a pixel coordinate (x, y), the sample is taken uniformely in
-    /// $\left[x, x+1\right[ \times \left[y, x+1\right[$
-    pub fn sample_at_pixel(ctx: &mut Ctx, x: u32, y: u32) -> PixelCoord {
-        let uniform = Uniform::new(0., 1.);
-        let dx = uniform.sample(&mut ctx.rng);
-        let dy = uniform.sample(&mut ctx.rng);
-        PixelCoord {
-            x: x as f32 + dx,
-            y: y as f32 + dy,
-        }
-    }
-}
-
 /// Represent a coordinate in the viewport space.
 ///
 /// The viewport is mapped to the range $\left[-1, -1\right]$ for both `vx` and `vy`.
@@ -126,7 +99,7 @@ pub struct ViewportCoord {
 
 impl ViewportCoord {
     // Convert a coordinate in pixel space into viewport space
-    pub fn from_pixel_coord(camera: &Camera, coords: PixelCoord) -> Self {
+    pub fn from_pixel_coord(camera: &Camera, coords: Vec2) -> Self {
         Self {
             vx: 2. * (coords.x / camera.width as f32) - 1.,
             vy: 2. * (coords.y / camera.height as f32) - 1.,

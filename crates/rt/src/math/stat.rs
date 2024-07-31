@@ -5,13 +5,13 @@ use crate::color::{Luma, Rgb};
 /// Represent a serie of samples from a given discribution.
 /// It is used to get an easy access to mean, variance and
 #[derive(Default, Clone)]
-pub struct SampleSeries {
+pub struct VarianceSeries {
     count: usize,
     sum: f32,
     sqsum: f32,
 }
 
-impl SampleSeries {
+impl VarianceSeries {
     pub fn new() -> Self {
         Self {
             count: 0,
@@ -30,6 +30,10 @@ impl SampleSeries {
             sum: lhs.sum + rhs.sum,
             sqsum: lhs.sqsum + rhs.sqsum,
         }
+    }
+
+    pub fn sum(&self) -> f32 {
+        self.sum
     }
 
     pub fn mean(&self) -> f32 {
@@ -90,9 +94,9 @@ const STUDENT_5: [f32; 16] = [
 
 #[derive(Default, Clone)]
 pub struct RgbSeries {
-    r: SampleSeries,
-    g: SampleSeries,
-    b: SampleSeries,
+    r: VarianceSeries,
+    g: VarianceSeries,
+    b: VarianceSeries,
 }
 
 impl RgbSeries {
@@ -130,9 +134,9 @@ impl RgbSeries {
     }
     pub fn merge(lhs: Self, rhs: Self) -> Self {
         Self {
-            r: SampleSeries::merge(lhs.r, rhs.r),
-            g: SampleSeries::merge(lhs.g, rhs.g),
-            b: SampleSeries::merge(lhs.b, rhs.b),
+            r: VarianceSeries::merge(lhs.r, rhs.r),
+            g: VarianceSeries::merge(lhs.g, rhs.g),
+            b: VarianceSeries::merge(lhs.b, rhs.b),
         }
     }
 }

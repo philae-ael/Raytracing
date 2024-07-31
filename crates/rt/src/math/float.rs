@@ -10,6 +10,8 @@ pub trait FloatAsExt {
     ///
     /// Returns None for NaN and +/- infty
     fn into_finite(self) -> Option<f32>;
+
+    fn lerp(self, from: f32, to: f32) -> f32;
 }
 
 impl FloatAsExt for f32 {
@@ -19,6 +21,10 @@ impl FloatAsExt for f32 {
 
     fn into_finite(self) -> Option<f32> {
         self.is_finite().then_some(self)
+    }
+
+    fn lerp(self, from: f32, to: f32) -> f32 {
+        self * to + (1.0 - self) * from
     }
 }
 

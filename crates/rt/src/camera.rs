@@ -70,7 +70,7 @@ impl Camera {
             + vcoords.vy * self.viewport_half_height * Vec3::Y;
 
         // to the lens
-        let [dx, dy] = UnitBall2.sample(&mut ctx.rng);
+        let Vec2 { x: dx, y: dy } = ctx.sampler.sample_2d();
         let offset = self.aperture / 2.0
             * Vec3 {
                 x: dx,

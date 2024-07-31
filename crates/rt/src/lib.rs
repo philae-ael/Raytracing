@@ -6,6 +6,7 @@
 pub mod aggregate;
 pub mod camera;
 pub mod color;
+pub mod filter;
 pub mod integrators;
 pub mod loader;
 pub mod material;
@@ -34,7 +35,7 @@ pub struct Seed {
     pub seed: u64,
     pub x: u32,
     pub y: u32,
-    pub sample: u32,
+    pub sample_idx: u32,
 }
 
 impl Seed {

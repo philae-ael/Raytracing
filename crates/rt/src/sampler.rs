@@ -1,6 +1,6 @@
 use crate::math::vec::Vec2;
-use rand::distributions::Uniform;
-use std::hash::DefaultHasher;
+use rand::{distributions::Uniform, prelude::Distribution, SeedableRng};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 const ONE_MINUS_EPSILON: f32 = f32::next_down(1.0);
 

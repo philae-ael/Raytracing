@@ -13,6 +13,33 @@ where
 
 unsafe impl<S: colorspace::Colorspace> bytemuck::Pod for Color<S> {}
 
+impl<S: colorspace::Colorspace> std::ops::Add for Color<S> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::from_array([
+            self.0[0] + rhs.0[0],
+            self.0[1] + rhs.0[1],
+            self.0[2] + rhs.0[2],
+        ])
+    }
+}
+impl<S: colorspace::Colorspace> std::ops::Mul<Color<S>> for f32 {
+    type Output = Color<S>;
+
+    fn mul(self, rhs: Color<S>) -> Self::Output {
+        Color::from_array([self * rhs.0[0], self * rhs.0[1], self * rhs.0[2]])
+    }
+}
+
+impl<S: colorspace::Colorspace> std::ops::Div<f32> for Color<S> {
+    type Output = Color<S>;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        Color::from_array([self.0[0] / rhs, self.0[1] / rhs, self.0[2] / rhs])
+    }
+}
+
 #[allow(non_camel_case_types)]
 pub type sRgb = Color<colorspace::sRGB>;
 pub type Rgb = Color<colorspace::Linear_RGB>;

@@ -1,6 +1,7 @@
 use rt::{
+    filter::{Filter, TriangleFilter},
     math::vec::Vec2,
-    sampler::{Sampler, StratifiedSampler, UniformSampler},
+    sampler::{Sampler, StratifiedSampler},
     Seed,
 };
 use std::{
@@ -29,7 +30,7 @@ use rt::{
     color::{ColorspaceConversion, Luma, Rgb},
     integrators::Integrator,
     memory::{Arena, ArenaInner},
-    renderer::{GenericRenderResult, PixelRenderResult, RayResult, RaySeries, World},
+    renderer::{GenericRenderResult, PixelRenderResult, RaySeries, World},
     utils::counter::counter,
     Ctx,
 };
@@ -241,17 +242,17 @@ impl Executor {
         let sqr_sample = f32::sqrt(self.spp as f32).floor() as u32;
 
         for (index, (x, y)) in tile.into_iter().enumerate() {
-            // let mut sampler = StratifiedSampler::new(x, y, sqr_sample, sqr_sample);
-            let mut sampler = UniformSampler::new(x, y);
+            let mut sampler = StratifiedSampler::new(x, y, sqr_sample, sqr_sample);
+            // let mut sampler = UniformSampler::new(x, y);
 
-            for sample in samples.clone() {
+            for sample_idx in samples.clone() {
                 arena.reuse();
-                sampler.with_sample(sample);
+                sampler.with_sample(sample_idx);
 
                 let seed = Seed {
                     x,
                     y,
-                    sample,
+                    sample_idx,
                     seed: self.seed,
                 };
                 let mut ctx = Ctx {
@@ -262,7 +263,7 @@ impl Executor {
                     arena: Arena::new(arena),
                 };
 
-                data[index].add_sample(self.pixel_worker(&mut ctx));
+                self.pixel_worker(&mut ctx, &mut data[index]);
 
                 if let Some(allowed_error) = self.allowed_error {
                     if data[index].color.is_precise_enough(allowed_error).is_some() {
@@ -274,14 +275,22 @@ impl Executor {
         }
     }
 
-    fn pixel_worker(&self, ctx: &mut Ctx) -> RayResult {
+    fn pixel_worker(&self, ctx: &mut Ctx, res: &mut RaySeries) {
+        let pcoords = ctx.sampler.sample_2d();
+
+        let filtered_sample = TriangleFilter {
+            radius: Vec2::splat(0.7),
+        }
+        .sample(pcoords);
+
         let coords = Vec2 {
-            x: ctx.seed.x as f32,
-            y: ctx.seed.y as f32,
-        } + ctx.sampler.sample_2d();
+            x: ctx.seed.x as f32 + 0.5,
+            y: ctx.seed.y as f32 + 0.5,
+        } + filtered_sample.coords;
 
         let camera_ray = self.camera.ray(ctx, coords);
-        self.integrator.ray_cast(ctx, camera_ray, 0)
+        let sample = self.integrator.ray_cast(ctx, camera_ray, 0);
+        res.add_sample(sample, filtered_sample.weight);
     }
 }
 
@@ -362,7 +371,6 @@ impl SampleCounter {
             spp: spp.clone(),
             cur: match spp {
                 Spp::Spp(r) => r.start,
-                _ => 0,
             },
         }
     }

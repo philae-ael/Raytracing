@@ -93,7 +93,7 @@ macro_rules! default_colorspace_conversions {
 default_colorspace_conversions!(colorspace::sRGB);
 impl ColorspaceConversion<colorspace::Linear_RGB> for sRgb {
     fn convert(self) -> Color<colorspace::Linear_RGB> {
-        Color::from_array(self.to_array().map(colorspace::sRGB::from_linear_rgb))
+        Color::from_array(self.to_array().map(colorspace::Linear_RGB::from_srgb))
     }
 }
 
@@ -101,7 +101,7 @@ impl ColorspaceConversion<colorspace::Linear_RGB> for sRgb {
 default_colorspace_conversions!(colorspace::Linear_RGB);
 impl ColorspaceConversion<colorspace::sRGB> for Rgb {
     fn convert(self) -> Color<colorspace::sRGB> {
-        Color::from_array(self.to_array().map(colorspace::Linear_RGB::from_srgb))
+        Color::from_array(self.to_array().map(colorspace::sRGB::from_linear_rgb))
     }
 }
 

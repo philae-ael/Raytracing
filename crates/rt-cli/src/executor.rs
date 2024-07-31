@@ -1,5 +1,5 @@
 use rt::{
-    filter::{Filter, TriangleFilter},
+    filter::{BoxFilter, Filter, TriangleFilter},
     math::vec::Vec2,
     sampler::{Sampler, StratifiedSampler},
     Seed,
@@ -278,7 +278,7 @@ impl Executor {
     fn pixel_worker(&self, ctx: &mut Ctx, res: &mut RaySeries) {
         let pcoords = ctx.sampler.sample_2d();
 
-        let filtered_sample = TriangleFilter {
+        let filtered_sample = BoxFilter {
             radius: Vec2::splat(0.7),
         }
         .sample(pcoords);

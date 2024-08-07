@@ -11,6 +11,15 @@ pub struct Color<S>(pub [f32; 3], PhantomData<S>)
 where
     S: colorspace::Colorspace;
 
+impl<S> Default for Color<S>
+where
+    S: colorspace::Colorspace,
+{
+    fn default() -> Self {
+        Self(Default::default(), Default::default())
+    }
+}
+
 unsafe impl<S: colorspace::Colorspace> bytemuck::Pod for Color<S> {}
 
 impl<S: colorspace::Colorspace> std::ops::Add for Color<S> {

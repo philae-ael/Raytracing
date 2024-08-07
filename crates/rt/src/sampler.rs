@@ -2,7 +2,7 @@ use crate::math::vec::Vec2;
 use rand::{distributions::Uniform, prelude::Distribution, SeedableRng};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-const ONE_MINUS_EPSILON: f32 = f32::next_down(1.0);
+pub const ONE_MINUS_EPSILON: f32 = f32::next_down(1.0);
 
 pub trait Sampler {
     /// Sample a point around the pixel located at `coords`

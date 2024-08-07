@@ -32,6 +32,7 @@ impl Progress {
             ..Default::default()
         }
     }
+
     pub fn add(&self, k: usize) -> usize {
         self.current.fetch_add(k, atomic::Ordering::SeqCst)
     }

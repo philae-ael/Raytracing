@@ -3,7 +3,7 @@ use rand::prelude::Distribution;
 
 use crate::{
     math::{
-        distributions::{UnitBall3, UnitBall3PolarMethod},
+        distributions::{UniformUnitBall3, UniformUnitBall3PolarMethod},
         vec::{RgbAsVec3Ext, Vec3AsNonZero, Vec3SameDirExt},
     },
     ray::Ray,
@@ -19,8 +19,9 @@ pub struct Diffuse {
 
 impl Material for Diffuse {
     fn scatter(&self, ray: Ray, record: &local_info::Full, rng: &mut Rng) -> Scattered {
-        let bounce_noise =
-            Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
+        let bounce_noise = Vec3::from_array(
+            UniformUnitBall3::<UniformUnitBall3PolarMethod>::default().sample(rng),
+        );
         let bounce_normal = -record.normal.same_direction(ray.direction);
         let bounce_direction = (bounce_normal + bounce_noise)
             .into_non_zero(0.01)

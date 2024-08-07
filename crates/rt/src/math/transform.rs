@@ -50,3 +50,35 @@ impl Transformer<Point> for Transform {
         Point(rotated_scaled) + self.translation
     }
 }
+
+/// Represent an orthonormal frame
+pub struct Frame {
+    frame: glam::Mat3,
+}
+
+impl Frame {
+    /// Construct a Frame from a single vector using the algorithm described in
+    /// “Building an Orthonormal Basis, Revisited (JCGT).” Accessed August 6, 2024. https://jcgt.org/published/0006/01/01/.
+    /// n is expected to be normalized and will be used as the +z axis
+    pub fn new(n: Vec3) -> Self {
+        let sign = f32::signum(n.z);
+        let a = -1.0 / (sign + n.z);
+        let b = n.x * n.y * a;
+
+        Self {
+            frame: glam::Mat3::from_cols(
+                Vec3::new(1.0 + sign * n.x * n.x * a, sign * b, -sign * n.x),
+                Vec3::new(b, sign + n.y * n.y * a, -n.y),
+                n,
+            ),
+        }
+    }
+
+    pub fn to_local(&self, global: Vec3) -> Vec3 {
+        self.frame * global
+    }
+
+    pub fn from_local(&self, local: Vec3) -> Vec3 {
+        self.frame.transpose() * local
+    }
+}

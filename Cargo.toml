@@ -11,6 +11,7 @@ embree4-rs = { git = "https://github.com/philae-ael/embree4-rs" }
 embree4-sys = "0.0.10"
 anyhow = "1"
 glam = { version = "0.28", features = ["bytemuck"] }
+bitflags = "2.6"
 
 [workspace.metadata.docs.rs]
 rustdoc-args = ["--html-in-header", "./doc_head.html"]

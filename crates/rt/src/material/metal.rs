@@ -3,7 +3,7 @@ use rand::prelude::Distribution;
 
 use crate::{
     math::{
-        distributions::{UnitBall3, UnitBall3PolarMethod},
+        distributions::{UniformUnitBall3, UniformUnitBall3PolarMethod},
         vec::{RefrReflVecExt, RgbAsVec3Ext, Vec3AsNonZero},
     },
     ray::Ray,
@@ -21,7 +21,9 @@ impl Material for Metal {
     fn scatter(&self, ray: Ray, record: &local_info::Full, rng: &mut crate::Rng) -> Scattered {
         let ray_direction = ray.direction.reflect(record.normal);
         let fuziness = self.roughness
-            * Vec3::from_array(UnitBall3::<UnitBall3PolarMethod>::default().sample(rng));
+            * Vec3::from_array(
+                UniformUnitBall3::<UniformUnitBall3PolarMethod>::default().sample(rng),
+            );
         let ray_direction = (ray_direction + fuziness)
             .into_non_zero(0.01)
             .unwrap_or(ray_direction);

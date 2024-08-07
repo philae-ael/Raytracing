@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow.workspace = true
 bytemuck = { version = "1.12.1", features = ["derive"] }
+bitflags.workspace = true
 embree4-rs.workspace = true
 embree4-sys.workspace = true
 glam.workspace = true

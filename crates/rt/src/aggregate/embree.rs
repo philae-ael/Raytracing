@@ -9,8 +9,7 @@ use embree4_rs::{
 use embree4_sys::{RTCGeometry, RTCSceneFlags};
 
 use crate::{
-    color::Rgb,
-    material::{texture::Uniform, Emit, MaterialDescriptor, MaterialId},
+    material::{DiffuseBxDF, MaterialDescriptor, MaterialId},
     math::point::Point,
     renderer::World,
     scene::SceneT,
@@ -41,8 +40,8 @@ impl<'a> EmbreeScene<'a> {
             scene,
             materials: vec![MaterialDescriptor {
                 label: Some("Sky".into()),
-                material: Box::new(Emit {
-                    texture: Box::new(Uniform(Rgb::from_array([0.02, 0.02, 0.02]))),
+                material: Box::new(DiffuseBxDF {
+                    albedo: [0.0, 0.0, 0.0].into(),
                 }),
             }],
             lights: Default::default(),

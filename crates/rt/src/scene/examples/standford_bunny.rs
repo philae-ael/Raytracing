@@ -1,9 +1,8 @@
 use glam::{Quat, Vec3};
 
 use crate::{
-    color::Rgb,
     loader::ObjLoaderExt,
-    material::{Gooch, MaterialDescriptor},
+    material::{DiffuseBxDF, MaterialDescriptor},
     math::transform::Transform,
     scene::SceneT,
 };
@@ -13,12 +12,8 @@ impl StandfordBunnyScene {
     pub fn insert_into(scene: &mut impl SceneT) {
         let default_material = scene.insert_material(MaterialDescriptor {
             label: Some("Goosh - Default".to_string()),
-            material: Box::new(Gooch {
-                diffuse: Rgb::from_array([1.0, 0., 0.]),
-                smoothness: 20.0,
-                light_dir: Vec3::new(-1.0, -1.0, 0.0),
-                yellow: Rgb::from_array([0.8, 0.8, 0.0]),
-                blue: Rgb::from_array([0.0, 0.0, 0.8]),
+            material: Box::new(DiffuseBxDF {
+                albedo: [1.0, 1.0, 0.5].into(),
             }),
         });
 

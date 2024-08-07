@@ -1,4 +1,4 @@
-use crate::material::{texture, BSDFMaterial, Diffuse, DiffuseBxDF};
+use crate::material::{DiffuseBxDF, EmitBxDF};
 use crate::scene::SceneT;
 use crate::{
     color::Rgb,
@@ -11,18 +11,10 @@ use glam::{Quat, Vec3};
 pub struct CornellBoxScene;
 impl CornellBoxScene {
     pub fn insert_into(scene: &mut impl SceneT) {
-        let c = Box::new(texture::Uniform(Rgb::from_array([0.5, 0.8, 0.9])));
-        let default_material = scene.insert_material(MaterialDescriptor {
-            label: Some("Goosh - Default".to_string()),
-            material: Box::new(Diffuse { texture: c }),
-        });
-
         let default_material2 = scene.insert_material(MaterialDescriptor {
             label: Some("Goosh - Default 2".to_string()),
-            material: Box::new(BSDFMaterial {
-                bxdf: DiffuseBxDF {
-                    albedo: Rgb::from_array([0.5, 0.8, 0.9]),
-                },
+            material: Box::new(DiffuseBxDF {
+                albedo: Rgb::from_array([5.5, 0.8, 0.9]),
             }),
         });
 
@@ -40,5 +32,12 @@ impl CornellBoxScene {
             label: None,
             light_pos: Point::new(0.0, 0.4, -0.4),
         });
+        let l = scene.insert_material(MaterialDescriptor {
+            label: Some("light!".into()),
+            material: Box::new(EmitBxDF {
+                le: [50.0, 50.0, 50.0].into(),
+            }),
+        });
+        scene.insert_sphere(l, Point::new(0.0, 0.0, 5.0), 3.0);
     }
 }

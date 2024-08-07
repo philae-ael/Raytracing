@@ -1,14 +1,10 @@
 use crate::{math::bounds::Bounds, ray::Ray};
 
 pub trait Shape: Sync + Send {
-    /// Check whether `ray` intersect the shape defined by `self` if so, gives all the information needed
     fn intersection_full(&self, ray: Ray) -> FullIntersectionResult;
 
-    /// Check whether `ray` intersect the shape defined by `self` if so, return the minimal amount of information
-    /// It is often used to cast shadow rays
     fn intersect_bare(&self, ray: Ray) -> MinIntersectionResult;
 
-    /// Returns the bounding box of the shape, if any.
     fn bounding_box(&self) -> Bounds;
 }
 

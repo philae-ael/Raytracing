@@ -1,6 +1,13 @@
+use std::f32::consts::FRAC_1_PI;
+
+use rand::prelude::Distribution;
+
 use crate::{
-    color,
-    math::vec::{RgbAsVec3Ext, Vec3AsRgbExt},
+    material::{Scattered, BSDF},
+    math::{
+        distributions::{Samplable, Samples, UniformUnitSphere3},
+        vec::RgbAsVec3Ext,
+    },
     ray::Ray,
     renderer::RayResult,
     shape::IntersectionResult,
@@ -9,17 +16,16 @@ use crate::{
 
 use super::Integrator;
 
-pub struct BasicIntegrator {
+pub struct RandomWalkIntegrator {
     pub max_depth: u32,
 }
 
-impl Integrator for BasicIntegrator {
+impl Integrator for RandomWalkIntegrator {
     fn ray_cast(&self, ctx: &mut Ctx, ray: Ray, depth: u32) -> RayResult {
         if depth == self.max_depth {
             return RayResult::default();
         }
 
-        // Prevent auto intersection
         let ray = Ray::new_with_range(ray.origin, ray.direction, 0.00001..ray.bounds.1);
 
         let isect = ctx.world.objects.intersection_full(ray);
@@ -27,26 +33,40 @@ impl Integrator for BasicIntegrator {
             return self.sky_ray(ctx, ray);
         };
 
-        // On material hit
         let material = &ctx.world.materials[record.local_info.material.0].material;
-        let scattered = material.scatter(ray, &record.local_info, &mut ctx.rng);
+        // TODO: The material should do it
+        let bsdf = BSDF::new(record.local_info.normal, material.as_ref());
 
-        let (color, depth) = if let Some(ray_out) = scattered.ray_out {
-            let ray_result = self.ray_cast(ctx, ray_out, depth + 1);
-            (ray_result.color, ray_result.ray_depth + 1.0)
-        } else {
-            (color::linear::WHITE, depth as f32)
+        let uniform = rand::distributions::Uniform::new(0.0, 1.0);
+        let wo = -ray.direction;
+        let wi = UniformUnitSphere3.sample_with(Samples([
+            uniform.sample(&mut ctx.rng),
+            uniform.sample(&mut ctx.rng),
+        ]));
+
+        let s = bsdf.f(wo, wi);
+
+        let scattered = Scattered {
+            albedo: s,
+            ray_out: Some(Ray::new(record.local_info.pos, wi)),
         };
 
-        let color = (color.vec() * scattered.albedo.vec()).rgb();
+        let ray_result = self.ray_cast(ctx, Ray::new(record.local_info.pos, wi), depth + 1);
+
+        let fcos = record.local_info.normal.dot(wi).abs() * scattered.albedo;
+        let li = if fcos.vec().max_element().abs() != 0.0 {
+            material.le() + FRAC_1_PI / 4.0 * fcos * ray_result.color
+        } else {
+            material.le()
+        };
 
         RayResult {
             normal: record.local_info.normal,
             position: record.local_info.pos,
             albedo: scattered.albedo,
-            color,
+            color: li,
             z: record.t,
-            ray_depth: depth,
+            ray_depth: ray_result.ray_depth + record.t,
             samples_accumulated: 1,
         }
     }

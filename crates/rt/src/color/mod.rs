@@ -3,6 +3,8 @@ use std::marker::PhantomData;
 use bytemuck::{Pod, Zeroable};
 use colorspace::Colorspace;
 
+use crate::math::vec::{RgbAsVec3Ext, Vec3AsRgbExt};
+
 pub mod colorspace;
 
 #[repr(C)]
@@ -46,6 +48,14 @@ impl<S: colorspace::Colorspace> std::ops::Div<f32> for Color<S> {
 
     fn div(self, rhs: f32) -> Self::Output {
         Color::from_array([self.0[0] / rhs, self.0[1] / rhs, self.0[2] / rhs])
+    }
+}
+
+impl std::ops::Mul<Rgb> for Rgb {
+    type Output = Rgb;
+
+    fn mul(self, rhs: Rgb) -> Self::Output {
+        (self.vec() * rhs.vec()).rgb()
     }
 }
 

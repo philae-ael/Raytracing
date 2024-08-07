@@ -3,7 +3,7 @@ use std::{ops::Range, str::FromStr};
 
 use clap::ValueEnum;
 use rt::{
-    integrators::{BasicIntegrator, Integrator, WhittedIntegrator},
+    integrators::{Integrator, RandomWalkIntegrator},
     scene::{
         examples::{CornellBoxScene, DebugScene, DragonScene, SpheresScene, StandfordBunnyScene},
         SceneT,
@@ -60,14 +60,12 @@ pub enum AvailableOutput {
 pub enum AvailableIntegrator {
     #[default]
     Basic,
-    Whitted,
 }
 
 impl From<AvailableIntegrator> for Box<dyn Integrator> {
     fn from(val: AvailableIntegrator) -> Self {
         match val {
-            AvailableIntegrator::Basic => Box::new(BasicIntegrator { max_depth: 64 }),
-            AvailableIntegrator::Whitted => Box::new(WhittedIntegrator { max_depth: 64 }),
+            AvailableIntegrator::Basic => Box::new(RandomWalkIntegrator { max_depth: 64 }),
         }
     }
 }

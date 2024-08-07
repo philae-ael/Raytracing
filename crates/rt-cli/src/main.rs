@@ -38,7 +38,7 @@ pub struct Args {
     #[arg(short, long, value_enum)]
     output: Vec<AvailableOutput>,
 
-    #[arg(short, long, value_enum)]
+    #[arg(short, long, value_enum, default_value_t)]
     integrator: AvailableIntegrator,
 
     #[arg(long)]

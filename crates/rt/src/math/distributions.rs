@@ -115,6 +115,25 @@ impl Distribution<[f32; 2]> for UniformUnitSphere2 {
     }
 }
 
+pub struct UniformUnitSphere3;
+impl Samplable<Vec3, 2> for UniformUnitSphere3 {
+    fn sample_with(&self, samples: Samples<2>) -> Vec3 {
+        let phi = std::f32::consts::TAU * samples[0];
+        let theta = std::f32::consts::PI * samples[1];
+
+        let (sphi, cphi) = f32::sin_cos(phi);
+        let (stheta, ctheta) = f32::sin_cos(theta);
+        [cphi * stheta, sphi * stheta, ctheta].into()
+    }
+}
+
+impl Distribution<Vec3> for UniformUnitSphere3 {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Vec3 {
+        let uniform = Uniform::new(0., 1.);
+        self.sample_with(Samples([uniform.sample(rng), uniform.sample(rng)]))
+    }
+}
+
 pub fn sphere_uv_from_direction(direction: Vec3) -> Uv {
     let h = direction.dot(Vec3::Y);
     let a = (direction - (h * Vec3::Y)).normalize();

@@ -4,7 +4,7 @@ use glam::Vec3;
 
 use crate::{
     color::Rgb,
-    material::{texture, BSDFMaterial, Diffuse, DiffuseBxDF, Emit, MaterialId, MixMaterial},
+    material::{DiffuseBxDF, MaterialId},
     math::{
         point::Point,
         transform::{Transform, Transformer},
@@ -52,31 +52,29 @@ impl<S: SceneT> ObjLoaderExt for S {
                         })
                 });
 
-                let mat_id = if let Some(ke) = ke {
-                    self.insert_material(crate::material::MaterialDescriptor {
-                        label: None,
-                        material: Box::new(MixMaterial {
-                            p: 0.5,
-                            mat1: Diffuse {
-                                texture: Box::new(texture::Uniform(Rgb::from_array(
-                                    material.diffuse,
-                                ))),
-                            },
-                            mat2: Emit {
-                                texture: Box::new(texture::Uniform(Rgb::from_array(ke))),
-                            },
-                        }),
-                    })
-                } else {
-                    self.insert_material(crate::material::MaterialDescriptor {
-                        label: None,
-                        material: Box::new(BSDFMaterial {
-                            bxdf: DiffuseBxDF {
-                                albedo: Rgb::from_array(material.diffuse),
-                            },
-                        }),
-                    })
-                };
+                // let mat_id = if let Some(ke) = ke {
+                //     self.insert_material(crate::material::MaterialDescriptor {
+                //         label: None,
+                //         material: Box::new(MixMaterial {
+                //             p: 0.5,
+                //             mat1: Diffuse {
+                //                 texture: Box::new(texture::Uniform(Rgb::from_array(
+                //                     material.diffuse,
+                //                 ))),
+                //             },
+                //             mat2: Emit {
+                //                 texture: Box::new(texture::Uniform(Rgb::from_array(ke))),
+                //             },
+                //         }),
+                //     })
+                // } else {
+                let mat_id = self.insert_material(crate::material::MaterialDescriptor {
+                    label: None,
+                    material: Box::new(DiffuseBxDF {
+                        albedo: Rgb::from_array(material.diffuse),
+                    }),
+                });
+                // };
 
                 log::debug!(
                     "Inserting material {} with diffuse {:?} on mat_id {:?}",

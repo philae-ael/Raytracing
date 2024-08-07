@@ -1,24 +1,28 @@
-use glam::{Quat, Vec3};
-
+use crate::material::{texture, BSDFMaterial, Diffuse, DiffuseBxDF};
 use crate::scene::SceneT;
 use crate::{
     color::Rgb,
     loader::ObjLoaderExt,
-    material::{Gooch, LightDescriptor, MaterialDescriptor},
+    material::{LightDescriptor, MaterialDescriptor},
     math::{point::Point, transform::Transform},
 };
+use glam::{Quat, Vec3};
 
 pub struct CornellBoxScene;
 impl CornellBoxScene {
     pub fn insert_into(scene: &mut impl SceneT) {
+        let c = Box::new(texture::Uniform(Rgb::from_array([0.5, 0.8, 0.9])));
         let default_material = scene.insert_material(MaterialDescriptor {
             label: Some("Goosh - Default".to_string()),
-            material: Box::new(Gooch {
-                diffuse: Rgb::from_array([1.0, 0., 0.]),
-                smoothness: 20.0,
-                light_dir: Vec3::new(-1.0, -1.0, 0.0),
-                yellow: Rgb::from_array([0.8, 0.8, 0.0]),
-                blue: Rgb::from_array([0.0, 0.0, 0.8]),
+            material: Box::new(Diffuse { texture: c }),
+        });
+
+        let default_material2 = scene.insert_material(MaterialDescriptor {
+            label: Some("Goosh - Default 2".to_string()),
+            material: Box::new(BSDFMaterial {
+                bxdf: DiffuseBxDF {
+                    albedo: Rgb::from_array([0.5, 0.8, 0.9]),
+                },
             }),
         });
 
@@ -29,7 +33,7 @@ impl CornellBoxScene {
                 scale: Vec3::splat(0.5),
                 rot: Quat::IDENTITY,
             },
-            default_material,
+            default_material2,
         );
 
         scene.insert_light(LightDescriptor {

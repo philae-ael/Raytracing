@@ -5,7 +5,7 @@ use glam::{Quat, Vec3};
 use crate::{
     color::Rgb,
     loader::ObjLoaderExt,
-    material::{texture, Dielectric, Diffuse, Emit},
+    material::{texture, BSDFMaterial, Dielectric, Diffuse, DiffuseBxDF, Emit},
     math::{point::Point, transform::Transform},
     scene::SceneT,
 };
@@ -43,8 +43,10 @@ impl DragonScene {
 
         let ball = scene.insert_material(crate::material::MaterialDescriptor {
             label: None,
-            material: Box::new(Diffuse {
-                texture: Box::new(texture::Uniform(Rgb::from_array([0.2, 0.1, 0.5]))),
+            material: Box::new(BSDFMaterial {
+                bxdf: DiffuseBxDF {
+                    albedo: Rgb::from_array([0.2, 0.1, 0.5]),
+                },
             }),
         });
         scene.insert_sphere(ball, Point::new(-0.7, -0.2, -1.9), 0.8);

@@ -4,7 +4,7 @@ use glam::Vec3;
 
 use crate::{
     color::Rgb,
-    material::{texture, Diffuse, Emit, MaterialId, MixMaterial},
+    material::{texture, BSDFMaterial, Diffuse, DiffuseBxDF, Emit, MaterialId, MixMaterial},
     math::{
         point::Point,
         transform::{Transform, Transformer},
@@ -70,8 +70,10 @@ impl<S: SceneT> ObjLoaderExt for S {
                 } else {
                     self.insert_material(crate::material::MaterialDescriptor {
                         label: None,
-                        material: Box::new(Diffuse {
-                            texture: Box::new(texture::Uniform(Rgb::from_array(material.diffuse))),
+                        material: Box::new(BSDFMaterial {
+                            bxdf: DiffuseBxDF {
+                                albedo: Rgb::from_array(material.diffuse),
+                            },
                         }),
                     })
                 };

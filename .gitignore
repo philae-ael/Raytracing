@@ -1,5 +1,6 @@
 /target
 output/hdr
+output/ldr
 out_old.*
 HDRI
 tev.exe

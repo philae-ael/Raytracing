@@ -1,8 +1,7 @@
 use glam::Vec2;
-use rand::prelude::Distribution;
 
 use crate::{
-    math::{distributions::UnitBall2, point::Point, quaternion::Quat, vec::Vec3},
+    math::{point::Point, quaternion::Quat, vec::Vec3},
     ray::Ray,
     Ctx,
 };

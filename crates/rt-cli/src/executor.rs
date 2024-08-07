@@ -1,5 +1,5 @@
 use rt::{
-    filter::{BoxFilter, Filter, TriangleFilter},
+    filter::{BoxFilter, Filter},
     math::vec::Vec2,
     sampler::{Sampler, StratifiedSampler},
     Seed,

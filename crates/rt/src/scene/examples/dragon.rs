@@ -5,7 +5,7 @@ use glam::{Quat, Vec3};
 use crate::{
     color::Rgb,
     loader::ObjLoaderExt,
-    material::DiffuseBxDF,
+    material::{DielectricBxDF, DiffuseBxDF, ThinDielectricBxDF},
     math::{point::Point, transform::Transform},
     scene::SceneT,
 };
@@ -14,21 +14,9 @@ pub struct DragonScene;
 
 impl DragonScene {
     pub fn insert_into<S: SceneT>(scene: &mut S) {
-        // let c = Box::new(texture::Uniform(Rgb::from_array([0.5, 0.8, 0.9])));
-        // let glass = scene.insert_material(crate::material::MaterialDescriptor {
-        //     label: None,
-        //     material: Box::new(Dielectric {
-        //         texture: c,
-        //         ior: 1.5,
-        //     }),
-        // });
-        // let _ = glass;
-
-        let diffuse = scene.insert_material(crate::material::MaterialDescriptor {
+        let glass = scene.insert_material(crate::material::MaterialDescriptor {
             label: None,
-            material: Box::new(DiffuseBxDF {
-                albedo: Rgb::from_array([0.5, 0.5, 0.9]),
-            }),
+            material: Box::new(ThinDielectricBxDF { ior: 1.5 }),
         });
 
         scene.load_obj(
@@ -38,7 +26,7 @@ impl DragonScene {
                 scale: 0.01 * Vec3::ONE,
                 rot: Quat::from_axis_angle(Vec3::Y, 1.1 * PI),
             },
-            diffuse,
+            glass,
         );
 
         scene.insert_light(crate::material::LightDescriptor {

@@ -1,6 +1,7 @@
 use crate::{ray::Ray, renderer::RayResult, Ctx};
 
-mod basic;
+mod pathtracing;
+mod randomwalk;
 
 pub trait Integrator: Send + Sync {
     fn ray_cast(&self, ctx: &mut Ctx, ray: Ray, depth: u32) -> RayResult;
@@ -15,11 +16,12 @@ pub trait Integrator: Send + Sync {
 
         // let scattered = material.scatter(ray, &record, &mut ctx.rng);
         RayResult {
-            color: [10.0, 10.0, 10.0].into(),
+            color: [0.5, 0.3, 1.0].into(),
             samples_accumulated: 1,
             ..Default::default()
         }
     }
 }
 
-pub use basic::RandomWalkIntegrator;
+pub use pathtracing::PathTracer;
+pub use randomwalk::RandomWalkIntegrator;

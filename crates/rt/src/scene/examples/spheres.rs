@@ -1,5 +1,5 @@
 use crate::{
-    material::{DiffuseBxDF, LightDescriptor, MaterialDescriptor},
+    material::{DielectricBxDF, DiffuseBxDF, LightDescriptor, MaterialDescriptor},
     math::point::Point,
     scene::SceneT,
 };
@@ -20,13 +20,10 @@ impl SpheresScene {
                 albedo: [0.2, 0.4, 0.8].into(),
             }),
         });
-        // let glass = scene.insert_material(MaterialDescriptor {
-        //     label: None,
-        //     material: Box::new(Dielectric {
-        //         texture: Box::new(texture::Uniform(Rgb::from_array([1.0, 1.0, 1.0]))),
-        //         ior: 1.5,
-        //     }),
-        // });
+        let glass = scene.insert_material(MaterialDescriptor {
+            label: None,
+            material: Box::new(DielectricBxDF { ior: 1.5 }),
+        });
         // let light = scene.insert_material(MaterialDescriptor {
         //     label: None,
         //     material: Box::new(Emit {
@@ -36,7 +33,7 @@ impl SpheresScene {
 
         scene.insert_sphere(diffuse, Point::new(-0.6, 0.05, -1.0), 0.3);
         scene.insert_sphere(diffuse_blue, Point::new(-0.3, -0.05, 1.0), 0.2);
-        scene.insert_sphere(diffuse, Point::new(0.0, 0.0, -0.3), 0.15);
+        scene.insert_sphere(glass, Point::new(0.0, 0.0, -0.3), 0.15);
 
         // let diffuse_ground = scene.insert_material(MaterialDescriptor {
         //     label: None,

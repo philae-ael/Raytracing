@@ -1,7 +1,7 @@
 pub use glam::Vec2;
 pub use glam::Vec3;
 
-use crate::{color::Rgb, utils::log_once::warn_once};
+use crate::color::Rgb;
 
 pub trait Vec3Ext: Sized {
     fn same_hemishpere(&self, w: Vec3) -> bool;
@@ -28,18 +28,25 @@ impl Vec3Ext for Vec3 {
         self - (2.0 * self.dot(normal) * normal)
     }
 
+    // From outside  to inside => wo  and normal are in the same hemisphere
+    // Otherwise from outside to inside and the ior and changed accordingly
     fn refract(self, normal: Vec3, ior: f32) -> Option<Vec3> {
-        let cosi = self.dot(normal);
-        if cosi > 0.0 {
-            warn_once!("Error during refraction: Normal and vector should be in opposite direction. They are in the same direction.");
-        }
+        let (normal, cosi, ior) = {
+            let cosi = self.dot(normal);
+            if cosi >= 0.0 {
+                (normal, cosi, ior)
+            } else {
+                // From inside to outside
+                (-normal, -cosi, 1.0 / ior)
+            }
+        };
 
-        let k = ior * ior * (1. - cosi * cosi);
+        let cost = 1. - (1. - cosi * cosi) / ior / ior;
 
-        if k > 1. {
+        if cost >= 1. {
             None
         } else {
-            Some(ior * (self - cosi * normal) - f32::sqrt(1. - k) * normal)
+            Some(-self / ior + (cosi / ior - cost) * normal)
         }
     }
 

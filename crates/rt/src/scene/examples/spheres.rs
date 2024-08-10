@@ -22,7 +22,10 @@ impl SpheresScene {
         });
         let glass = scene.insert_material(MaterialDescriptor {
             label: None,
-            material: Box::new(DielectricBxDF { ior: 1.5 }),
+            material: Box::new(DielectricBxDF {
+                ior: 1.5,
+                roughness: 0.01,
+            }),
         });
         // let light = scene.insert_material(MaterialDescriptor {
         //     label: None,

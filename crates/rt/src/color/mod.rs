@@ -8,10 +8,19 @@ use crate::math::vec::{RgbAsVec3Ext, Vec3AsRgbExt};
 pub mod colorspace;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, bytemuck::Zeroable)]
+#[derive(Clone, Copy, bytemuck::Zeroable)]
 pub struct Color<S>(pub [f32; 3], PhantomData<S>)
 where
     S: colorspace::Colorspace;
+
+impl<S: std::fmt::Debug> std::fmt::Debug for Color<S>
+where
+    S: colorspace::Colorspace,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Color").field(&self.0).finish()
+    }
+}
 
 impl<S> Default for Color<S>
 where

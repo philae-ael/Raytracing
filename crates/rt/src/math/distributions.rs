@@ -1,11 +1,13 @@
 use core::f32;
 use std::{marker::PhantomData, ops::Deref};
 
+use glam::Vec2;
+use log::trace;
 use rand::{distributions::Uniform, prelude::Distribution, Rng};
 
 use crate::material::texture::Uv;
 
-use super::vec::Vec3;
+use super::{float::FloatAsExt, vec::Vec3};
 
 /// Samples are expected to be in [0;1(^N
 pub struct Samples<const N: usize>(pub [f32; N]);
@@ -195,5 +197,69 @@ impl Distribution<Vec3> for CosineHemisphere3 {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Vec3 {
         let uniform = Uniform::new(0., 1.);
         self.sample_with(Samples([uniform.sample(rng), uniform.sample(rng)]))
+    }
+}
+
+pub struct IsotropicTrowbridgeReitzDistribution {
+    pub alpha: f32,
+}
+
+impl IsotropicTrowbridgeReitzDistribution {
+    pub fn is_smooth(&self) -> bool {
+        self.alpha < 1e-8
+    }
+    pub fn dw(&self, w: Vec3, wm: Vec3) -> f32 {
+        self.g1(w) / w.z.abs() * self.d(wm) * w.dot(wm).abs()
+    }
+    pub fn d(&self, wm: Vec3) -> f32 {
+        let cos2theta = wm.z * wm.z;
+        let sin2theta = 1.0 - cos2theta;
+        let tan2theta = sin2theta / cos2theta;
+
+        1.0 / (f32::consts::PI * cos2theta.powi(2) * (self.alpha + tan2theta).powi(2))
+    }
+    pub fn g(&self, w0: Vec3, w1: Vec3) -> f32 {
+        1.0 / (1.0 + self.lambda(w0) + self.lambda(w1))
+    }
+    pub fn g1(&self, w: Vec3) -> f32 {
+        1.0 / (1.0 + self.lambda(w))
+    }
+    pub fn lambda(&self, w: Vec3) -> f32 {
+        let cos2theta = w.z * w.z;
+        let sin2theta = 1.0 - cos2theta;
+        let tan2theta = sin2theta / cos2theta;
+
+        (f32::sqrt(1.0 + self.alpha.powi(2) * tan2theta)) / 2.0
+    }
+
+    pub fn pdf(&self, w: Vec3, wm: Vec3) -> f32 {
+        self.dw(w, wm)
+    }
+
+    pub fn sample_wm(&self, w: Vec3, samples: Samples<2>) -> Vec3 {
+        let w = Vec3::new(self.alpha * w.x, self.alpha * w.y, w.z).normalize();
+        let w = if w.z >= 0.0 { w } else { -w };
+        trace!("{w:?}");
+
+        let t1 = if w.z < 0.9999 {
+            Vec3::Z.cross(w).normalize()
+        } else {
+            Vec3::X
+        };
+        let t2 = w.cross(t1);
+
+        let p = {
+            let mut p = UniformUnitBall2.sample_with(samples);
+
+            let h = f32::sqrt(1.0 - p[0].powi(2));
+            p[1] = ((1.0 + w.z) / 2.0).lerp(h, p[1]);
+            Vec2::from_array(p)
+        };
+
+        let pz = f32::sqrt(f32::max(0.0, 1.0 - p.length_squared()));
+        let nh = p.x * t1 + p.y * t2 + pz * w;
+
+        // Normal -> a and not 1/a
+        Vec3::new(self.alpha * nh.x, self.alpha * nh.y, f32::max(1e-6, nh.z)).normalize()
     }
 }

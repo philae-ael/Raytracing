@@ -4,6 +4,7 @@ use std::ops::Deref;
 
 use bitflags::bitflags;
 use glam::Vec3;
+use log::trace;
 
 use crate::{
     color::{
@@ -11,7 +12,7 @@ use crate::{
         Rgb,
     },
     math::{
-        distributions::{CosineHemisphere3, DirectionalPDF, Samplable, Sample1D, Sample2D},
+        distributions::{self, CosineHemisphere3, DirectionalPDF, Samplable, Sample1D, Sample2D},
         point::Point,
         transform::Frame,
         vec::Vec3Ext,
@@ -29,6 +30,7 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
 pub struct BxDFSample {
     pub wi: Vec3,
     pub f: Rgb,
@@ -72,12 +74,15 @@ impl<I: BxDF + ?Sized> BSDF<'_, I> {
     }
 
     pub fn sample_f(&self, wo: Vec3, uv: Sample2D, w: Sample1D) -> Option<BxDFSample> {
-        self.inner
-            .sample_f(self.frame.to_local(wo), uv, w)
-            .map(|x| BxDFSample {
-                wi: self.frame.from_local(x.wi),
-                ..x
-            })
+        let wo_local = self.frame.to_local(wo);
+        if wo_local.z == 0.0 {
+            return None;
+        };
+
+        self.inner.sample_f(wo_local, uv, w).map(|x| BxDFSample {
+            wi: self.frame.from_local(x.wi),
+            ..x
+        })
     }
 
     pub fn f(&self, wo: Vec3, wi: Vec3) -> Rgb {
@@ -128,6 +133,7 @@ impl BxDF for DiffuseBxDF {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DielectricBxDF {
     pub ior: f32,
+    pub roughness: f32,
 }
 
 fn fresnel_dielectric(cosi: f32, ior: f32) -> f32 {
@@ -137,14 +143,14 @@ fn fresnel_dielectric(cosi: f32, ior: f32) -> f32 {
         (-cosi, 1.0 / ior)
     };
 
-    let costsq = 1.0 - (1.0 - cosi) * cosi / ior / ior;
-    if costsq < 0.0 {
+    let cost2 = 1.0 - (1.0 - cosi * cosi) / ior / ior;
+    if cost2 < 0.0 {
         return 1.0; // complete reflection
     }
-    let cost = f32::sqrt(costsq);
+    let cost = f32::sqrt(cost2);
     let r_parl = (ior * cosi - cost) / (ior * cosi + cost);
     let r_perp = (cosi - ior * cost) / (cosi + ior * cost);
-    0.5 * (r_parl + r_perp)
+    0.5 * (r_parl.powi(2) + r_perp.powi(2))
 }
 
 impl BxDF for DielectricBxDF {
@@ -158,34 +164,150 @@ impl BxDF for DielectricBxDF {
         f | BxDFFlags::Reflection | BxDFFlags::Specular
     }
 
-    fn f(&self, _wo: Vec3, _wi: Vec3) -> Rgb {
-        BLACK
+    fn f(&self, wo: Vec3, wi: Vec3) -> Rgb {
+        let distrib = distributions::IsotropicTrowbridgeReitzDistribution {
+            alpha: self.roughness,
+        };
+        if self.ior == 1.0 || distrib.is_smooth() {
+            return BLACK;
+        }
+
+        let cosi = wi.z;
+        let coso = wo.z;
+        let reflect = cosi * coso > 0.0;
+        let ior = if reflect || coso > 0.0 {
+            self.ior
+        } else {
+            1.0 / self.ior
+        };
+        let wm = {
+            let wm = wi * ior + wo;
+            if cosi == 0.0 || coso == 0.0 || wm.length_squared() == 0.0 {
+                return BLACK;
+            };
+            wm.z.signum() * wm.normalize()
+        };
+
+        if wi.dot(wm) * cosi < 0.0 || wo.dot(wm) * coso < 0.0 {
+            return BLACK;
+        }
+
+        let r = fresnel_dielectric(wo.dot(wm), ior);
+        let t = 1.0 - r;
+        if reflect {
+            distrib.d(wm) * distrib.g(wo, wi) * r / f32::abs(4. * cosi * coso) * WHITE
+        } else {
+            let denom = (wi.dot(wm) + wo.dot(wm) / ior).powi(2) * cosi * coso;
+            distrib.d(wm)
+                * t
+                * distrib.g(wo, wi)
+                * f32::abs(wi.dot(wm) * wo.dot(wm) / denom)
+                * WHITE
+        }
     }
 
-    fn pdf(&self, _wo: Vec3, _wi: Vec3) -> f32 {
-        0.0
-    }
+    fn pdf(&self, wo: Vec3, wi: Vec3) -> f32 {
+        let distrib = distributions::IsotropicTrowbridgeReitzDistribution {
+            alpha: self.roughness,
+        };
+        if self.ior == 1.0 || distrib.is_smooth() {
+            return 0.0;
+        }
 
-    fn sample_f(&self, wo: Vec3, _uv: Sample2D, w: Sample1D) -> Option<BxDFSample> {
-        let r = fresnel_dielectric(wo.z, self.ior);
+        let cosi = wi.z;
+        let coso = wo.z;
+        let reflect = cosi * cosi > 0.0;
+        let ior = if reflect { self.ior } else { 1.0 / self.ior };
+        let wm = {
+            let wm = wi * ior;
+            if cosi == 0.0 || coso == 0.0 || wm.length_squared() == 0.0 {
+                return 0.0;
+            };
+            wm.signum() * wm.normalize()
+        };
+
+        if wi.dot(wm) * cosi < 0.0 || wo.dot(wm) * coso < 0.0 {
+            return 0.0;
+        }
+
+        let r = fresnel_dielectric(wo.dot(wm), self.ior);
         let t = 1.0 - r;
 
-        if w[0] <= r / (r + t) {
-            // perfect reflection
-            let wi = Vec3::new(-wo.x, -wo.y, wo.z);
-            Some(BxDFSample {
-                wi,
-                f: (r / wi.z.abs()) * WHITE,
-                pdf: r / (r + t),
-            })
+        if reflect {
+            distrib.pdf(wo, wm) / (4.0 * f32::abs(wo.dot(wm))) * r / (r + t)
         } else {
-            // perfect transmission (with refraction)
-            let wi = wo.refract(Vec3::Z, self.ior)?;
-            Some(BxDFSample {
-                wi,
-                f: (t / wi.z.abs()) * WHITE,
-                pdf: t / (r + t),
-            })
+            let dwm_dwi = f32::abs(wi.dot(wm)) / (wi.dot(wm) + wi.dot(wm) / ior).powi(2);
+            distrib.pdf(wo, wm) * dwm_dwi * t / (r + t)
+        }
+    }
+
+    fn sample_f(&self, wo: Vec3, uv: Sample2D, w: Sample1D) -> Option<BxDFSample> {
+        let distrib = distributions::IsotropicTrowbridgeReitzDistribution {
+            alpha: self.roughness,
+        };
+
+        if self.ior == 1.0 || distrib.is_smooth() {
+            // perfect specular
+            let r = fresnel_dielectric(wo.z, self.ior);
+            let t = 1.0 - r;
+
+            if w[0] <= r / (r + t) {
+                // perfect reflection
+                let wi = Vec3::new(-wo.x, -wo.y, wo.z);
+                Some(BxDFSample {
+                    wi,
+                    f: (r / wi.z.abs()) * WHITE,
+                    pdf: r / (r + t),
+                })
+            } else {
+                // perfect transmission (with refraction)
+                let (wi, _) = wo.refract(Vec3::Z, self.ior)?;
+                debug_assert!(!wi.is_nan());
+                Some(BxDFSample {
+                    wi,
+                    f: (t / wi.z.abs()) * WHITE,
+                    pdf: t / (r + t),
+                })
+            }
+        } else {
+            // rough
+            let wm = distrib.sample_wm(wo, uv);
+            trace!("wm {wm:?} wo {wo:?}");
+            let r = fresnel_dielectric(wo.dot(wm), self.ior);
+            let t = 1.0 - r;
+            if w[0] < r / (r + t) {
+                // reflection
+                let wi = wo.reflect(wm);
+                trace!("{:?}  {:?} {:?}", wo, wm, wi);
+                if !wo.same_hemishpere(wi) {
+                    return None;
+                };
+
+                let f = distrib.d(wm) * distrib.g(wo, wi) * r / (4.0 * wi.z * wo.z) * WHITE;
+
+                let pdf = distrib.pdf(wo, wm) / (4.0 * f32::abs(wo.dot(wm))) * r / (r + t);
+                debug_assert!(!pdf.is_nan());
+                Some(BxDFSample { wi, f, pdf })
+            } else {
+                // transmission
+                let (wi, ior) = wo.refract(wm, self.ior)?;
+                if wi.same_hemishpere(wo) || wi.z == 0.0 {
+                    return None;
+                }
+
+                let denom = (wi.dot(wm) + wo.dot(wm) / ior).powi(2);
+                let dwm_dwi = f32::abs(wi.dot(wm)) / denom;
+
+                let f = t
+                    * distrib.d(wm)
+                    * distrib.g(wo, wi)
+                    * f32::abs(wo.dot(wm) * wi.dot(wm) / (wi.z * wo.z * denom))
+                    * WHITE;
+
+                let pdf = distrib.pdf(wo, wm) * dwm_dwi * t / (r + t);
+                debug_assert!(!pdf.is_nan());
+                Some(BxDFSample { wi, f, pdf })
+            }
         }
     }
 }

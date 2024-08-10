@@ -65,20 +65,41 @@ impl Frame {
         let a = -1.0 / (sign + n.z);
         let b = n.x * n.y * a;
 
-        Self {
+        let this = Self {
             frame: glam::Mat3::from_cols(
                 Vec3::new(1.0 + sign * n.x * n.x * a, sign * b, -sign * n.x),
                 Vec3::new(b, sign + n.y * n.y * a, -n.y),
                 n,
             ),
-        }
+        };
+        debug_assert!(
+            (this.frame * this.frame.transpose() - glam::Mat3::IDENTITY)
+                .to_cols_array()
+                .into_iter()
+                .reduce(f32::max)
+                .unwrap_or(0.0)
+                .abs()
+                < 1e5
+        );
+
+        this
     }
 
     pub fn to_local(&self, global: Vec3) -> Vec3 {
-        self.frame * global
+        self.frame.transpose() * global
     }
 
     pub fn from_local(&self, local: Vec3) -> Vec3 {
-        self.frame.transpose() * local
+        self.frame * local
+    }
+
+    pub fn x(&self) -> Vec3 {
+        self.frame.col(0)
+    }
+    pub fn y(&self) -> Vec3 {
+        self.frame.col(0)
+    }
+    pub fn z(&self) -> Vec3 {
+        self.frame.col(0)
     }
 }

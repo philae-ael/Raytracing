@@ -1,9 +1,10 @@
 use std::f32::consts::FRAC_1_PI;
 
+use log::trace;
 use rand::prelude::Distribution;
 
 use crate::{
-    material::{Scattered, BSDF},
+    material::BSDF,
     math::{
         distributions::{Samplable, Samples, UniformUnitSphere3},
         vec::RgbAsVec3Ext,
@@ -44,17 +45,12 @@ impl Integrator for RandomWalkIntegrator {
             uniform.sample(&mut ctx.rng),
         ]));
 
-        let s = bsdf.f(wo, wi);
+        let f = bsdf.f(wo, wi);
 
-        let scattered = Scattered {
-            albedo: s,
-            ray_out: Some(Ray::new(record.local_info.pos, wi)),
-        };
-
-        let ray_result = self.ray_cast(ctx, Ray::new(record.local_info.pos, wi), depth + 1);
-
-        let fcos = record.local_info.normal.dot(wi).abs() * scattered.albedo;
+        let fcos = record.local_info.normal.dot(wi).abs() * f;
+        trace!("{fcos:?}");
         let li = if fcos.vec().max_element().abs() != 0.0 {
+            let ray_result = self.ray_cast(ctx, Ray::new(record.local_info.pos, wi), depth + 1);
             material.le() + FRAC_1_PI / 4.0 * fcos * ray_result.color
         } else {
             material.le()
@@ -63,10 +59,10 @@ impl Integrator for RandomWalkIntegrator {
         RayResult {
             normal: record.local_info.normal,
             position: record.local_info.pos,
-            albedo: scattered.albedo,
+            albedo: f,
             color: li,
             z: record.t,
-            ray_depth: ray_result.ray_depth + record.t,
+            ray_depth: record.t,
             samples_accumulated: 1,
         }
     }

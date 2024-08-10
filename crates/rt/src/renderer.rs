@@ -1,4 +1,5 @@
 use bytemuck::{Pod, Zeroable};
+use log::trace;
 
 use crate::{
     color::{self, Luma, Rgb},
@@ -46,6 +47,9 @@ impl FilteredRgb {
     }
 
     pub fn value(&self) -> Rgb {
+        if self.sum_of_weigth == 0.0 {
+            return self.rgb;
+        }
         self.rgb / self.sum_of_weigth
     }
 

@@ -6,7 +6,7 @@ use crate::color::Rgb;
 pub trait Vec3Ext: Sized {
     fn same_hemishpere(&self, w: Vec3) -> bool;
     fn into_non_zero(self, eps: f32) -> Option<Self>;
-    fn refract(self, normal: Vec3, ior: f32) -> Option<Vec3>;
+    fn refract(self, normal: Vec3, ior: f32) -> Option<(Vec3, f32)>;
     fn reflect(self, normal: Vec3) -> Vec3;
     fn same_direction(self, other: Self) -> Self;
 }
@@ -25,12 +25,12 @@ impl Vec3Ext for Vec3 {
     }
 
     fn reflect(self, normal: Vec3) -> Vec3 {
-        self - (2.0 * self.dot(normal) * normal)
+        -self + 2.0 * self.dot(normal) * normal
     }
 
     // From outside  to inside => wo  and normal are in the same hemisphere
     // Otherwise from outside to inside and the ior and changed accordingly
-    fn refract(self, normal: Vec3, ior: f32) -> Option<Vec3> {
+    fn refract(self, normal: Vec3, ior: f32) -> Option<(Vec3, f32)> {
         let (normal, cosi, ior) = {
             let cosi = self.dot(normal);
             if cosi >= 0.0 {
@@ -41,12 +41,13 @@ impl Vec3Ext for Vec3 {
             }
         };
 
-        let cost = 1. - (1. - cosi * cosi) / ior / ior;
+        let cost2 = 1.0 - f32::max(0.0, 1. - cosi * cosi) / ior / ior;
 
-        if cost >= 1. {
+        if cost2 <= 0. {
             None
         } else {
-            Some(-self / ior + (cosi / ior - cost) * normal)
+            let cost = f32::sqrt(cost2);
+            Some((-self / ior + (cosi / ior - cost) * normal, ior))
         }
     }
 

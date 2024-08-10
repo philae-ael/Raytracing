@@ -1,6 +1,5 @@
-use std::f32::consts::FRAC_1_PI;
-
 use glam::Vec3;
+use log::trace;
 use rand::prelude::Distribution;
 
 use crate::{
@@ -25,6 +24,7 @@ impl Integrator for PathTracer {
         if depth == self.max_depth {
             return RayResult::default();
         }
+        trace!("depth {depth:?}");
 
         let ray = Ray::new_with_range(ray.origin, ray.direction, 0.00001..ray.bounds.1);
 
@@ -49,15 +49,20 @@ impl Integrator for PathTracer {
                 f: BLACK,
                 pdf: 1.0,
             });
-
-        let ray_result = self.ray_cast(ctx, Ray::new(record.local_info.pos, sampled.wi), depth + 1);
+        trace!("sampled {:?}", sampled);
 
         let fcos = record.local_info.normal.dot(sampled.wi).abs() * sampled.f;
+        trace!("fcos {fcos:?}");
         let li = if fcos.vec().max_element().abs() != 0.0 {
+            let ray_result =
+                self.ray_cast(ctx, Ray::new(record.local_info.pos, sampled.wi), depth + 1);
             material.le() + 1.0 / sampled.pdf * fcos * ray_result.color
         } else {
             material.le()
         };
+
+        trace!("li {:?}", li);
+        trace!("le {:?}", material.le());
 
         RayResult {
             normal: record.local_info.normal,
@@ -65,7 +70,7 @@ impl Integrator for PathTracer {
             albedo: sampled.f,
             color: li,
             z: record.t,
-            ray_depth: ray_result.ray_depth + record.t,
+            ray_depth: record.t,
             samples_accumulated: 1,
         }
     }

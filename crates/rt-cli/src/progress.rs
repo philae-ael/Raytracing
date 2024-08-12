@@ -26,6 +26,7 @@ impl Progress {
             ..Default::default()
         }
     }
+    #[allow(dead_code)]
     pub fn new_inf() -> Self {
         Self {
             max: MaxProgress::Inf,

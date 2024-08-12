@@ -11,9 +11,9 @@ use std::{
 };
 
 use crate::{
-    renderer::RenderRange,
     tile::{Tile, Tiler},
-    Dimensions, Spp,
+    utils::{FromArgs, RenderRange},
+    Args, Dimensions, Spp,
 };
 
 use super::progress;
@@ -57,6 +57,20 @@ pub struct Executor {
     pub spp: u32,
 
     pub seed: u64,
+}
+
+impl FromArgs for Executor {
+    fn from_args(args: &Args) -> Self {
+        Executor {
+            dimension: args.dimensions,
+            tile_size: args.tile_size,
+            allowed_error: args.allowed_error,
+            spp: args.spp,
+            integrator: FromArgs::from_args(args),
+            camera: FromArgs::from_args(args),
+            seed: args.seed,
+        }
+    }
 }
 
 const SCRATCH_MEMORY_SIZE: usize = 1024 * 1024; // 1 MB

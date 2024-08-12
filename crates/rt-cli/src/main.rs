@@ -11,9 +11,12 @@ mod utils;
 use anyhow::Result;
 use clap::Parser;
 use progress::PercentBar;
-use renderer::{ExecutionMode, RenderRange, Renderer};
+use renderer::Renderer;
 use rt::aggregate::embree::EmbreeScene;
-use utils::{AvailableIntegrator, AvailableOutput, AvailableScene, Dimensions, Spp};
+use utils::{
+    AvailableIntegrator, AvailableOutput, AvailableScene, Dimensions, ExecutionMode, FromArgs,
+    RenderRange, Spp,
+};
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -63,9 +66,12 @@ pub struct Args {
     /// Seed to use for all the random stuff.
     /// Given a seed, the rendering is deterministic (the output only depends on x, y, sample and seed).
     seed: u64,
+
+    #[arg(long)]
+    max_ray_depth: Option<u32>,
 }
 
-fn build_device() -> Result<embree4_rs::device::Device> {
+fn build_embree_device() -> Result<embree4_rs::device::Device> {
     log::info!("building embree device");
     let device = embree4_rs::device::Device::try_new(None)?;
 
@@ -87,7 +93,7 @@ fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let args = Args::parse();
 
-    let device = build_device()?;
+    let device = build_embree_device()?;
 
     log::info!("loading scene");
     let mut scene = EmbreeScene::new(&device);
@@ -109,8 +115,5 @@ fn main() -> anyhow::Result<()> {
 
     let world = commited_scene.into_world()?;
 
-    let renderer = Renderer::from_args(args)?;
-    renderer.run(&world)?;
-
-    Ok(())
+    Renderer::from_args(&args).run(&world)
 }

@@ -4,7 +4,9 @@ use anyhow::{Context, Result};
 use rand::{distributions::Alphanumeric, Rng};
 use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
-use crate::{executor::TileMsg, renderer::StreamingOutput, Dimensions};
+use crate::{executor::TileMsg, Dimensions};
+
+use super::StreamingOutput;
 
 const CHANNEL_COUNT: usize = 15;
 fn channel_names() -> [&'static str; CHANNEL_COUNT] {

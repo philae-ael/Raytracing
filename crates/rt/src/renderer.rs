@@ -1,5 +1,4 @@
 use bytemuck::{Pod, Zeroable};
-use log::trace;
 
 use crate::{
     color::{self, Luma, Rgb},

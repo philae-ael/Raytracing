@@ -37,20 +37,20 @@ impl<S: SceneT> ObjLoaderExt for S {
 
         let has_non_default_materials = if let Ok(materials) = materials {
             for material in materials {
-                let ke: Option<_> = material.unknown_param.get("Ke").and_then(|x| {
-                    x.split(' ')
-                        .map(|x| -> f32 { x.parse::<i32>().unwrap() as f32 })
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .ok()
-                        .and_then(|x: [f32; 3]| {
-                            if x[0] == 0.0 && x[1] == 0.0 && x[2] == 0.0 {
-                                None
-                            } else {
-                                Some(x)
-                            }
-                        })
-                });
+                // let ke: Option<_> = material.unknown_param.get("Ke").and_then(|x| {
+                //     x.split(' ')
+                //         .map(|x| -> f32 { x.parse::<i32>().unwrap() as f32 })
+                //         .collect::<Vec<_>>()
+                //         .try_into()
+                //         .ok()
+                //         .and_then(|x: [f32; 3]| {
+                //             if x[0] == 0.0 && x[1] == 0.0 && x[2] == 0.0 {
+                //                 None
+                //             } else {
+                //                 Some(x)
+                //             }
+                //         })
+                // });
 
                 // let mat_id = if let Some(ke) = ke {
                 //     self.insert_material(crate::material::MaterialDescriptor {

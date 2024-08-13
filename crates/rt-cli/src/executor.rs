@@ -18,7 +18,6 @@ use crate::{
 
 use super::progress;
 
-use image::{ImageBuffer, Rgb32FImage};
 use rayon::{
     iter::{
         IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
@@ -27,10 +26,9 @@ use rayon::{
 };
 use rt::{
     camera::Camera,
-    color::{ColorspaceConversion, Luma, Rgb},
     integrators::Integrator,
     memory::{Arena, ArenaInner},
-    renderer::{GenericRenderResult, PixelRenderResult, RaySeries, World},
+    renderer::{PixelRenderResult, RaySeries, World},
     utils::counter::counter,
     Ctx,
 };
@@ -75,48 +73,16 @@ impl FromArgs for Executor {
 
 const SCRATCH_MEMORY_SIZE: usize = 1024 * 1024; // 1 MB
 
-type Luma32FImage = image::ImageBuffer<image::Luma<f32>, Vec<f32>>;
-pub type OutputBuffers = GenericRenderResult<Rgb32FImage, Luma32FImage>;
-
-trait OutputBuffersExt<T, L> {
-    fn convert(&mut self, d: GenericRenderResult<T, L>, x: u32, y: u32);
-    fn new(d: Dimensions) -> Self;
-}
-impl OutputBuffersExt<Rgb, Luma> for OutputBuffers {
-    fn convert(&mut self, d: PixelRenderResult, x: u32, y: u32) {
-        *self.color.get_pixel_mut(x, y) = d.color.convert().into();
-        *self.variance.get_pixel_mut(x, y) = d.variance.into();
-        *self.normal.get_pixel_mut(x, y) = d.normal.convert().into();
-        *self.albedo.get_pixel_mut(x, y) = d.albedo.convert().into();
-        *self.position.get_pixel_mut(x, y) = d.position.convert().into();
-        *self.z.get_pixel_mut(x, y) = d.z.into();
-        *self.ray_depth.get_pixel_mut(x, y) = d.ray_depth.into();
-    }
-
-    fn new(Dimensions { width, height }: Dimensions) -> Self {
-        Self {
-            color: ImageBuffer::new(width, height),
-            variance: Luma32FImage::new(width, height),
-            normal: ImageBuffer::new(width, height),
-            position: ImageBuffer::new(width, height),
-            albedo: ImageBuffer::new(width, height),
-            z: ImageBuffer::new(width, height),
-            ray_depth: ImageBuffer::new(width, height),
-        }
-    }
-}
-
 impl Executor {
-    pub fn run_multithreaded<F: FnMut(TileMsg) + Send>(
+    pub fn run_multithreaded<F: FnMut(&TileMsg) + Send>(
         self,
         world: &World,
         mut on_tile_rendered: F,
         pixel_range: RenderRange,
         sample_range: Spp,
-    ) -> anyhow::Result<OutputBuffers> {
+    ) -> anyhow::Result<()> {
         log::debug!("Monothreaded");
 
-        let mut output_buffers = OutputBuffers::new(self.dimension);
         let (tx, rx) = channel();
         let mut dispatcher_ = self.build_dispatcher(
             |msg| {
@@ -135,7 +101,6 @@ impl Executor {
         let generation_result = rayon::scope(|s: &Scope<'_>| {
             log::info!("Generating image...");
             s.spawn(|_| {
-                let output_buffers = &mut output_buffers;
                 let progress = &progress;
                 let rx: Receiver<Message> = rx; // Force move without moving anything else
                 let mut last_progress_update = std::time::Instant::now();
@@ -146,10 +111,7 @@ impl Executor {
                     };
                     match msg {
                         Message::Tile(msg) => {
-                            for (index, (x, y)) in msg.tile.into_iter().enumerate() {
-                                output_buffers.convert(msg.data[index], x, y);
-                            }
-                            on_tile_rendered(msg);
+                            on_tile_rendered(&msg);
                         }
                         Message::Stop => {
                             break;
@@ -179,19 +141,19 @@ impl Executor {
             }
             Err(err) => log::info!("Image generation interrupted: {}", err),
         };
-        Ok(output_buffers)
+
+        Ok(())
     }
 
-    pub fn run_monothreaded<F: FnMut(TileMsg)>(
+    pub fn run_monothreaded<F: FnMut(&TileMsg)>(
         self,
         world: &World,
         on_tile_rendered: F,
         pixel_range: RenderRange,
         samples_range: Spp,
-    ) -> anyhow::Result<OutputBuffers> {
+    ) -> anyhow::Result<()> {
         log::debug!("Monothreaded");
 
-        let mut output_buffers = OutputBuffers::new(self.dimension);
         let mut dispatcher = self.build_dispatcher(on_tile_rendered, pixel_range.x, pixel_range.y);
         let progress = match &samples_range {
             Spp::Spp(s) => progress::Progress::new(s.len() * dispatcher.tiler.tile_count()),
@@ -203,13 +165,13 @@ impl Executor {
         let mut arena = ArenaInner::new(SCRATCH_MEMORY_SIZE);
 
         for samples in SampleCounter::new(32, samples_range) {
-            dispatcher.dispatch_sync(world, &mut arena, samples, &mut output_buffers, &progress);
+            dispatcher.dispatch_sync(world, &mut arena, samples, &progress);
         }
         println!();
 
         log::info!("Image fully generated");
 
-        Ok(output_buffers)
+        Ok(())
     }
 
     fn build_dispatcher<F>(
@@ -315,13 +277,12 @@ struct Dispatcher<F> {
     executor: Executor,
 }
 
-impl<F: FnMut(TileMsg)> Dispatcher<F> {
+impl<F: FnMut(&TileMsg)> Dispatcher<F> {
     fn dispatch_sync(
         &mut self,
         world: &World,
         arena: &mut ArenaInner,
         samples: Range<u32>,
-        output_buffers: &mut OutputBuffers,
         progress: &progress::Progress,
     ) {
         for (tile, data) in self.tiler.into_iter().zip(self.tiles_data.iter_mut()) {
@@ -337,10 +298,7 @@ impl<F: FnMut(TileMsg)> Dispatcher<F> {
                 data: data.iter().map(|x| x.as_pixelresult()).collect::<Vec<_>>(),
             };
 
-            for (index, (x, y)) in msg.tile.into_iter().enumerate() {
-                output_buffers.convert(msg.data[index], x, y);
-            }
-            (self.on_tile_rendered)(msg);
+            (self.on_tile_rendered)(&msg);
         }
     }
 }

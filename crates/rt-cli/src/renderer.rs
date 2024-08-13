@@ -1,13 +1,12 @@
 use anyhow::Result;
 use itertools::Itertools;
-use rt::{
-    renderer::World,
-    utils::{counter, timer::timed_scope_log},
-};
+use rt::utils::timer::timed_scope_log;
+use rt::{renderer::World, utils::counter};
 
+use crate::output::{OutputBuffers, OutputBuffersExt};
 use crate::{
-    executor::Executor,
-    output::{DummyOutput, FileOutput, FinalOutput, StreamingOutput, TevStreaming},
+    executor::{Executor, TileMsg},
+    output::{FileOutput, FinalOutput, StreamingOutput, TevStreaming},
     utils::{ExecutionMode, FromArgs, RenderRange},
     Args, AvailableOutput,
 };
@@ -59,20 +58,21 @@ impl FromArgs for Renderer {
 impl Renderer {
     pub fn run(mut self, world: &World) -> Result<()> {
         log::info!("rendering");
-        let output_buffers = timed_scope_log("run tile renderer", || {
-            let f = |msg| {
+        let mut output_buffers = OutputBuffers {
+            channels: Vec::new(),
+        };
+
+        timed_scope_log("run tile renderer", || {
+            let dim = self.executor.dimension;
+            let f = |msg: &TileMsg| {
+                for (index, (x, y)) in msg.tile.into_iter().enumerate() {
+                    output_buffers.convert(&msg.data[index], x, y, dim);
+                }
                 self.streaming_outputs
                     .iter_mut()
-                    .for_each(|output| match output.send_msg(&msg) {
-                        Ok(_) => (),
-                        Err(err) => {
-                            log::error!(
-                                "streaming output errored, it will not be used anymore: {err}"
-                            );
-                            *output = Box::new(DummyOutput {});
-                        }
-                    });
+                    .for_each(|output| output.send_msg(msg).unwrap());
             };
+
             match self.execution_mode {
                 ExecutionMode::Multithreaded => {
                     log::info!("execution mode: multithreaded");

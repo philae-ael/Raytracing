@@ -1,5 +1,7 @@
 use core::f32;
 
+use bytemuck::Zeroable;
+
 use crate::color::{Luma, Rgb};
 
 /// Represent a serie of samples from a given discribution.
@@ -137,6 +139,45 @@ impl RgbSeries {
             r: VarianceSeries::merge(lhs.r, rhs.r),
             g: VarianceSeries::merge(lhs.g, rhs.g),
             b: VarianceSeries::merge(lhs.b, rhs.b),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct FilteredRgb {
+    rgb: Rgb,
+    sum_of_weigth: f32,
+}
+impl Default for FilteredRgb {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FilteredRgb {
+    pub fn new() -> Self {
+        Self {
+            rgb: Rgb::zeroed(),
+            sum_of_weigth: 0.0,
+        }
+    }
+
+    pub fn add_sample(&mut self, color: Rgb, weight: f32) {
+        self.sum_of_weigth += weight;
+        self.rgb = self.rgb + weight * color;
+    }
+
+    pub fn value(&self) -> Rgb {
+        if self.sum_of_weigth == 0.0 {
+            return self.rgb;
+        }
+        self.rgb / self.sum_of_weigth
+    }
+
+    pub fn merge(self, rhs: Self) -> Self {
+        Self {
+            rgb: self.rgb + rhs.rgb,
+            sum_of_weigth: self.sum_of_weigth + rhs.sum_of_weigth,
         }
     }
 }

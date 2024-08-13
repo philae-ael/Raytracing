@@ -1,11 +1,11 @@
-use bytemuck::{Pod, Zeroable};
+use derive_more::derive::Display;
 
 use crate::{
     color::{self, Luma, Rgb},
     material::{MaterialDescriptor, MaterialId},
     math::{
         point::Point,
-        stat::RgbSeries,
+        stat::{FilteredRgb, RgbSeries},
         vec::{RgbAsVec3Ext, Vec3, Vec3AsRgbExt},
     },
     shape::Shape,
@@ -21,46 +21,7 @@ pub struct RayResult {
     pub samples_accumulated: u32,
 }
 
-#[derive(Clone)]
-pub struct FilteredRgb {
-    rgb: Rgb,
-    sum_of_weigth: f32,
-}
-impl Default for FilteredRgb {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl FilteredRgb {
-    pub fn new() -> Self {
-        Self {
-            rgb: Rgb::zeroed(),
-            sum_of_weigth: 0.0,
-        }
-    }
-
-    pub fn add_sample(&mut self, color: Rgb, weight: f32) {
-        self.sum_of_weigth += weight;
-        self.rgb = self.rgb + weight * color;
-    }
-
-    pub fn value(&self) -> Rgb {
-        if self.sum_of_weigth == 0.0 {
-            return self.rgb;
-        }
-        self.rgb / self.sum_of_weigth
-    }
-
-    pub fn merge(self, rhs: Self) -> Self {
-        Self {
-            rgb: self.rgb + rhs.rgb,
-            sum_of_weigth: self.sum_of_weigth + rhs.sum_of_weigth,
-        }
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct RaySeries {
     pub samples_accumulated: u32,
     pub color: RgbSeries,
@@ -87,13 +48,15 @@ impl RaySeries {
 
         let inv_samples = 1.0 / *samples_accumulated as f32;
         PixelRenderResult {
-            normal: (inv_samples * *normal).rgb(),
-            position: (inv_samples * position.vec()).rgb(),
-            albedo: (inv_samples * albedo.vec()).rgb(),
-            color: filtered_color.value(),
-            variance: color.variance(),
-            z: color::Luma(inv_samples * z),
-            ray_depth: color::Luma(inv_samples * ray_depth),
+            channels: vec![
+                RgbChannel::Normal.channel((inv_samples * *normal).rgb()),
+                RgbChannel::Position.channel((inv_samples * position.vec()).rgb()),
+                RgbChannel::Albedo.channel((inv_samples * albedo.vec()).rgb()),
+                RgbChannel::Color.channel(filtered_color.value()),
+                LumaChannel::Variance.channel(color.variance()),
+                LumaChannel::Z.channel(color::Luma(inv_samples * z)),
+                LumaChannel::RayDepth.channel(color::Luma(inv_samples * ray_depth)),
+            ],
         }
     }
 
@@ -146,104 +109,47 @@ impl Default for RayResult {
     }
 }
 
-impl Default for RaySeries {
-    fn default() -> Self {
-        Self {
-            normal: color::linear::BLACK.vec(),
-            position: Point::ORIGIN,
-            albedo: color::linear::BLACK,
-            color: RgbSeries::default(),
-            filtered_color: FilteredRgb::default(),
-            z: 0.0,
-            ray_depth: 0.0,
-            samples_accumulated: 0,
-        }
+#[derive(Debug, Clone, Copy, Hash, Display, PartialEq, Eq)]
+pub enum RgbChannel {
+    Color,
+    Position,
+    Albedo,
+    Normal,
+}
+
+impl RgbChannel {
+    pub fn channel<RgbStorage, LumaStorage>(
+        self,
+        rgb: RgbStorage,
+    ) -> Channel<RgbStorage, LumaStorage> {
+        Channel::RgbChannel(self, rgb)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Hash, Display, PartialEq, Eq)]
+pub enum LumaChannel {
+    Variance,
+    Z,
+    RayDepth,
+}
+impl LumaChannel {
+    pub fn channel<RgbStorage, LumaStorage>(
+        self,
+        luma: LumaStorage,
+    ) -> Channel<RgbStorage, LumaStorage> {
+        Channel::LumaChannel(self, luma)
     }
 }
 
 pub enum Channel<RgbStorage, LumaStorage> {
-    Color(RgbStorage),
-    Variance(LumaStorage),
-    Normal(RgbStorage),
-    Position(RgbStorage),
-    Albedo(RgbStorage),
-    Z(LumaStorage),
-    RayDepth(LumaStorage),
+    RgbChannel(RgbChannel, RgbStorage),
+    LumaChannel(LumaChannel, LumaStorage),
 }
-const CHANNEL_COUNT: usize = 7;
 
-#[repr(C)]
 pub struct GenericRenderResult<RgbStorage, LumaStorage> {
-    pub color: RgbStorage,
-    pub variance: LumaStorage,
-    pub normal: RgbStorage,
-    pub position: RgbStorage,
-    pub albedo: RgbStorage,
-    pub z: LumaStorage,
-    pub ray_depth: LumaStorage,
+    pub channels: Vec<Channel<RgbStorage, LumaStorage>>,
 }
-
-impl<RgbStorage, LumaStorage> GenericRenderResult<RgbStorage, LumaStorage> {
-    pub fn as_ref(&self) -> GenericRenderResult<&RgbStorage, &LumaStorage> {
-        GenericRenderResult {
-            color: &self.color,
-            variance: &self.variance,
-            normal: &self.normal,
-            position: &self.position,
-            albedo: &self.albedo,
-            z: &self.z,
-            ray_depth: &self.ray_depth,
-        }
-    }
-}
-
-impl<T: Copy, L: Copy> Copy for GenericRenderResult<T, L> {}
-impl<T: Clone, L: Clone> Clone for GenericRenderResult<T, L> {
-    fn clone(&self) -> Self {
-        Self {
-            color: self.color.clone(),
-            variance: self.variance.clone(),
-            position: self.position.clone(),
-            normal: self.normal.clone(),
-            albedo: self.albedo.clone(),
-            z: self.z.clone(),
-            ray_depth: self.ray_depth.clone(),
-        }
-    }
-}
-
 pub type PixelRenderResult = GenericRenderResult<Rgb, Luma>;
-
-impl<RgbStorage, LumaStorage> IntoIterator for GenericRenderResult<RgbStorage, LumaStorage> {
-    type Item = Channel<RgbStorage, LumaStorage>;
-
-    type IntoIter = <[Channel<RgbStorage, LumaStorage>; CHANNEL_COUNT] as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        [
-            Channel::Color(self.color),
-            Channel::Variance(self.variance),
-            Channel::Albedo(self.albedo),
-            Channel::Position(self.position),
-            Channel::Normal(self.normal),
-            Channel::Z(self.z),
-            Channel::RayDepth(self.ray_depth),
-        ]
-        .into_iter()
-    }
-}
-
-/// SAFETY:
-/// - GenericRenderResult is Zeroable as T and L are,
-/// - all bits patterns are valid as all are valid for T and L,
-/// - all his fields are pods,
-/// - it is repr(C),
-/// - there is no interior mutability
-unsafe impl<T: Pod, L: Pod> Pod for GenericRenderResult<T, L> {}
-///
-/// SAFETY:
-/// GenericRenderResult is inhabited and the all-zero pattern is allowed as they are valid for T and L
-unsafe impl<T: Zeroable, L: Zeroable> Zeroable for GenericRenderResult<T, L> {}
 
 pub struct World<'a> {
     pub objects: &'a dyn Shape,

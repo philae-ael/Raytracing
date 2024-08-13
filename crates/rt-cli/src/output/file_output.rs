@@ -2,9 +2,7 @@ use anyhow::Result;
 use image::{buffer::ConvertBuffer, ImageBuffer, Rgb};
 use std::path::PathBuf;
 
-use crate::executor::OutputBuffers;
-
-use super::FinalOutput;
+use super::{FinalOutput, OutputBuffers};
 
 pub struct FileOutput {
     pub hdr_outdir: Option<PathBuf>,
@@ -28,24 +26,13 @@ impl FinalOutput for FileOutput {
             std::fs::create_dir_all(hdr_output)?;
 
             log::info!("Saving HDR images...");
-            for buff in output_buffers.as_ref().into_iter() {
+            for buff in &output_buffers.channels {
                 match buff {
-                    rt::renderer::Channel::Color(color) => color.save(hdr_path.join("color.exr")),
-                    rt::renderer::Channel::Variance(variance) => {
-                        convert_luma(variance).save(hdr_path.join("variance.exr"))
+                    rt::renderer::Channel::RgbChannel(chan, c) => {
+                        c.save(hdr_path.join(chan.to_string() + ".exr"))
                     }
-                    rt::renderer::Channel::Position(position) => {
-                        position.save(hdr_path.join("position.exr"))
-                    }
-                    rt::renderer::Channel::Normal(normal) => {
-                        normal.save(hdr_path.join("normal.exr"))
-                    }
-                    rt::renderer::Channel::Albedo(albedo) => {
-                        albedo.save(hdr_path.join("albedo.exr"))
-                    }
-                    rt::renderer::Channel::Z(z) => convert_luma(z).save(hdr_path.join("depth.exr")),
-                    rt::renderer::Channel::RayDepth(ray_depth) => {
-                        convert_luma(ray_depth).save(hdr_path.join("ray_depth.exr"))
+                    rt::renderer::Channel::LumaChannel(chan, c) => {
+                        convert_luma(c).save(hdr_path.join(chan.to_string() + ".exr"))
                     }
                 }?
             }
@@ -57,26 +44,13 @@ impl FinalOutput for FileOutput {
             std::fs::create_dir_all(ldr_output)?;
 
             log::info!("Saving LDR images...");
-            for buff in output_buffers.as_ref().into_iter() {
+            for buff in &output_buffers.channels {
                 match buff {
-                    rt::renderer::Channel::Color(color) => {
-                        convert_rgb(color).save(ldr_path.join("color.jpg"))
+                    rt::renderer::Channel::RgbChannel(chan, c) => {
+                        convert_rgb(c).save(ldr_path.join(chan.to_string() + ".jpeg"))
                     }
-                    rt::renderer::Channel::Variance(variance) => {
-                        convert_luma(variance).save(ldr_path.join("variance.jpg"))
-                    }
-                    rt::renderer::Channel::Normal(normal) => {
-                        convert_rgb(normal).save(ldr_path.join("normal.jpg"))
-                    }
-                    rt::renderer::Channel::Position(position) => {
-                        convert_rgb(position).save(ldr_path.join("position.jpg"))
-                    }
-                    rt::renderer::Channel::Albedo(albedo) => {
-                        convert_rgb(albedo).save(ldr_path.join("albedo.jpg"))
-                    }
-                    rt::renderer::Channel::Z(z) => convert_luma(z).save(ldr_path.join("depth.jpg")),
-                    rt::renderer::Channel::RayDepth(ray_depth) => {
-                        convert_luma(ray_depth).save(ldr_path.join("ray_depth.jpg"))
+                    rt::renderer::Channel::LumaChannel(chan, c) => {
+                        convert_luma(c).save(ldr_path.join(chan.to_string() + ".jpeg"))
                     }
                 }?
             }

@@ -35,7 +35,7 @@ impl CornellBoxScene {
         let l = scene.insert_material(MaterialDescriptor {
             label: Some("light!".into()),
             material: Box::new(EmitBxDF {
-                le: [50.0, 50.0, 50.0].into(),
+                le: [5.0, 5.0, 5.0].into(),
             }),
         });
         scene.insert_sphere(l, Point::new(0.0, 0.0, 5.0), 3.0);

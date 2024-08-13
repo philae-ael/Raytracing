@@ -2,22 +2,22 @@
 
 ## Dragon
 
-Renderered in 400ms, 5samples per pixel
- ![Current result](./output/dragon5/color.jpg) 
+Renderered in 1.5s, 5samples per pixel, 1920x1080
+ ![Current result](./output/dragon5/Color.jpeg) 
 
-Renderered in 1.5 secs, 20samples per pixel
-![Current result](./output/dragon20/color.jpg)
+Renderered in 6.7s, 20samples per pixel, 1920x1080
+![Current result](./output/dragon20/Color.jpeg)
 
-Renderered in 7 secs, 100samples per pixel
-![Current result](./output/dragon100/color.jpg)
+Renderered in 38.5s, 100samples per pixel, 1920x1080
+![Current result](./output/dragon100/Color.jpeg)
 
 
 ## Cornell-box
-Renderered in 450msecs, 5samples per pixel
-![Current result](./output/cornell5/color.jpg)
+Renderered in 4.9s, 5samples per pixel, 1920x1080
+![Current result](./output/cornell5/Color.jpeg)
 
-Renderered in 1.7secs, 20samples per pixel
-![Current result](./output/cornell20/color.jpg)
+Renderered in 16.3s, 20samples per pixel, 1920x1080
+![Current result](./output/cornell20/Color.jpeg)
 
-Renderered in 8.5secs, 100samples per pixel
-![Current result](./output/cornell100/color.jpg)
+Renderered in 1m31s, 100samples per pixel, 1920x1080
+![Current result](./output/cornell100/Color.jpeg)

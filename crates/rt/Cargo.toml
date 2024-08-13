@@ -19,6 +19,7 @@ rand = "0.8.5"
 rand_xoshiro = "0.6.0"
 rayon = "1.5.3"
 tobj = "3.2.3"
+derive_more = { version = "1.0.0", features = ["display"] }
 
 [features]
 default = ["debug_light"]

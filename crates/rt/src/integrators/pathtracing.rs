@@ -53,12 +53,15 @@ impl Integrator for PathTracer {
 
         let fcos = record.local_info.normal.dot(sampled.wi).abs() * sampled.f;
         trace!("fcos {fcos:?}");
-        let li = if fcos.vec().max_element().abs() != 0.0 {
+        let (li, ray_depth) = if fcos.vec().max_element().abs() != 0.0 {
             let ray_result =
                 self.ray_cast(ctx, Ray::new(record.local_info.pos, sampled.wi), depth + 1);
-            material.le() + 1.0 / sampled.pdf * fcos * ray_result.color
+            (
+                material.le() + 1.0 / sampled.pdf * fcos * ray_result.color,
+                ray_result.ray_depth,
+            )
         } else {
-            material.le()
+            (material.le(), 0.0)
         };
 
         trace!("li {:?}", li);
@@ -70,7 +73,7 @@ impl Integrator for PathTracer {
             albedo: sampled.f,
             color: li,
             z: record.t,
-            ray_depth: record.t,
+            ray_depth: ray_depth + record.t,
             samples_accumulated: 1,
         }
     }

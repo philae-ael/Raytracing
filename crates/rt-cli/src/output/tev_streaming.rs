@@ -2,42 +2,18 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use rand::{distributions::Alphanumeric, Rng};
+use rt::renderer::RgbChannel;
 use tev_client::{PacketCreateImage, PacketUpdateImage, TevClient};
 
 use crate::{executor::TileMsg, Dimensions};
 
 use super::StreamingOutput;
 
-const CHANNEL_COUNT: usize = 15;
-fn channel_names() -> [&'static str; CHANNEL_COUNT] {
-    [
-        "R",
-        "G",
-        "B", // color
-        "Variance",
-        "normal.X",
-        "normal.Y",
-        "normal.Z", // normal
-        "position.X",
-        "position.Y",
-        "position.Z", // position
-        "albedo.R",
-        "albedo.G",
-        "albedo.B", // albedo
-        "Z",        // depth
-        "ray_depth",
-    ]
-}
-fn channel_offsets() -> [u64; CHANNEL_COUNT] {
-    core::array::from_fn(|i| i as u64)
-}
-fn channel_strides() -> [u64; CHANNEL_COUNT] {
-    [CHANNEL_COUNT as u64; CHANNEL_COUNT]
-}
-
 pub struct TevStreaming {
     client: TevClient,
     image_name: String,
+    opened: bool,
+    dimension: Dimensions,
 }
 
 impl TevStreaming {
@@ -69,7 +45,7 @@ impl TevStreaming {
         };
 
         log::debug!("Trying tev direct connection");
-        let mut client = match try_connect() {
+        let client = match try_connect() {
             Ok(client) => client,
             Err(_) => {
                 log::warn!("Can't find tev client, trying to spawn tev");
@@ -88,36 +64,83 @@ impl TevStreaming {
         }
         let image_name = format!("raytraced-{}", get_id());
 
-        client.send(PacketCreateImage {
-            image_name: &image_name,
-            grab_focus: true,
-            channel_names: &channel_names(),
-            width: dimension.width,
-            height: dimension.height,
-        })?;
-
-        Ok(Self { client, image_name })
+        Ok(Self {
+            client,
+            image_name,
+            opened: false,
+            dimension,
+        })
     }
 }
 
 impl StreamingOutput for TevStreaming {
     fn send_msg(&mut self, msg: &TileMsg) -> Result<()> {
+        if msg.data.is_empty() {
+            return Ok(());
+        }
+
         assert!(msg.data.len() == msg.tile.len());
 
-        let data = bytemuck::cast_slice(msg.data.as_slice());
+        let mut channel_names = Vec::new();
+        let mut channel_offsets = Vec::<u64>::new();
+        for channel in &msg.data[0].channels {
+            match channel {
+                rt::renderer::Channel::RgbChannel(name, _) => {
+                    if *name != RgbChannel::Color {
+                        channel_names.push(name.to_string() + ".X");
+                        channel_names.push(name.to_string() + ".Y");
+                        channel_names.push(name.to_string() + ".Z");
+                    } else {
+                        channel_names.push("R".into());
+                        channel_names.push("G".into());
+                        channel_names.push("B".into());
+                    }
+                    channel_offsets.push(channel_offsets.len() as _);
+                    channel_offsets.push(channel_offsets.len() as _);
+                    channel_offsets.push(channel_offsets.len() as _);
+                }
+                rt::renderer::Channel::LumaChannel(name, _) => {
+                    channel_names.push(name.to_string());
+                    channel_offsets.push(channel_offsets.len() as _);
+                }
+            }
+        }
+        let channel_strides = vec![channel_offsets.len() as u64; channel_offsets.len()];
+
+        let mut data = Vec::new();
+        for p in &msg.data {
+            debug_assert_eq!(msg.data[0].channels.len(), p.channels.len());
+            for chan in &p.channels {
+                match chan {
+                    rt::renderer::Channel::RgbChannel(_, c) => data.extend(c.0),
+                    rt::renderer::Channel::LumaChannel(_, c) => data.push(c.0),
+                }
+            }
+        }
+
+        if !self.opened {
+            self.client.send(PacketCreateImage {
+                image_name: &self.image_name,
+                grab_focus: true,
+                channel_names: &channel_names,
+                width: self.dimension.width,
+                height: self.dimension.height,
+            })?;
+            self.opened = true;
+        }
 
         self.client
             .send(PacketUpdateImage {
                 image_name: &self.image_name,
                 grab_focus: false,
-                channel_names: &channel_names(),
-                channel_offsets: &channel_offsets(),
-                channel_strides: &channel_strides(),
+                channel_names: &channel_names,
+                channel_offsets: &channel_offsets,
+                channel_strides: &channel_strides,
                 x: msg.tile.x_start,
                 y: msg.tile.y_start,
                 width: msg.tile.width() as u32,
                 height: msg.tile.height() as u32,
-                data,
+                data: &data,
             })
             .context("Can't send Packet to tev client. It may be closed")
     }
